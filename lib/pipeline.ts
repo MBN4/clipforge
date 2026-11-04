@@ -57,7 +57,7 @@ export async function runPipeline(
       message: "Transcribing speech…",
     });
 
-    const transcript = await transcribe(sourcePath, dir);
+    const transcript = await transcribe(sourcePath, dir, info.duration);
     fs.writeFileSync(path.join(dir, "transcript.json"), JSON.stringify(transcript, null, 2));
 
     updateJob(jobId, {
@@ -73,8 +73,15 @@ export async function runPipeline(
 
     updateJob(jobId, { stage: "rendering", progress: 60, message: "Cutting vertical clips…" });
 
-    const clips: ClipResult[] = [];
-    for (let i = 0; i < ranked.length; i++) {
+    // Render a few clips concurrently instead of strictly one-at-a-time —
+    // a single ffmpeg encode at these settings doesn't saturate a modern
+    // multi-core box, so this cuts real wall-clock time on the slowest
+    // stage of the pipeline.
+    const RENDER_CONCURRENCY = 3;
+    const clipsByIndex: ClipResult[] = new Array(ranked.length);
+    let completed = 0;
+
+    async function renderOne(i: number) {
       const c = ranked[i];
       const baseName = `clip-${i}`;
       const { videoPath, thumbPath } = await renderClip({
@@ -86,7 +93,7 @@ export async function runPipeline(
         baseName,
       });
 
-      clips.push({
+      clipsByIndex[i] = {
         id: nanoid(8),
         index: i,
         start: c.start,
@@ -98,14 +105,25 @@ export async function runPipeline(
         reason: c.reason,
         videoPath: path.relative(process.cwd(), videoPath),
         thumbPath: path.relative(process.cwd(), thumbPath),
-      });
+      };
 
+      completed += 1;
       updateJob(jobId, {
-        progress: 60 + Math.round(((i + 1) / ranked.length) * 38),
-        message: `Rendering clip ${i + 1} of ${ranked.length}…`,
+        progress: 60 + Math.round((completed / ranked.length) * 38),
+        message: `Rendering clip ${completed} of ${ranked.length}…`,
       });
     }
 
+    let next = 0;
+    async function worker() {
+      while (next < ranked.length) {
+        const i = next++;
+        await renderOne(i);
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(RENDER_CONCURRENCY, ranked.length) }, worker));
+
+    const clips = clipsByIndex;
     updateJob(jobId, { stage: "done", progress: 100, message: "Done", clips });
   } catch (err: any) {
     console.error("[pipeline] failed", err);

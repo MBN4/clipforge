@@ -52,12 +52,9 @@ async function heuristicSegments(sourcePath: string, duration: number): Promise<
   return spans.map((s) => ({ text: "", start: s.start, end: s.end, words: [] }));
 }
 
-export async function transcribe(sourcePath: string, workDir: string): Promise<Transcript> {
+export async function transcribe(sourcePath: string, workDir: string, duration: number): Promise<Transcript> {
   const audioPath = path.join(workDir, "audio.wav");
   await extractAudio(sourcePath, audioPath);
-
-  const { probe } = await import("./ffmpeg");
-  const info = await probe(sourcePath);
 
   const outJson = path.join(workDir, "transcript.raw.json");
   const scriptPath = path.join(process.cwd(), "scripts", "transcribe.py");
@@ -68,12 +65,12 @@ export async function transcribe(sourcePath: string, workDir: string): Promise<T
     return {
       method: "whisper",
       language: parsed.language,
-      duration: parsed.duration || info.duration,
+      duration: parsed.duration || duration,
       segments: parsed.segments,
     };
   }
 
   console.warn("[transcribe] falling back to heuristic segmentation:", stderr.slice(-500));
-  const segments = await heuristicSegments(sourcePath, info.duration);
-  return { method: "heuristic", duration: info.duration, segments };
+  const segments = await heuristicSegments(sourcePath, duration);
+  return { method: "heuristic", duration, segments };
 }

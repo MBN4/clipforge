@@ -4,6 +4,7 @@ Usage: transcribe.py <audio_path> <out_json_path> [model_size]
 Exits non-zero and prints an error to stderr if the model cannot be loaded
 (e.g. no network to fetch weights) so the caller can fall back gracefully.
 """
+import os
 import sys
 import json
 
@@ -24,11 +25,23 @@ def main():
         sys.exit(1)
 
     try:
-        model = WhisperModel(model_size, device="cpu", compute_type="int8")
+        model = WhisperModel(
+            model_size,
+            device="cpu",
+            compute_type="int8",
+            cpu_threads=os.cpu_count() or 4,
+        )
+        # Highlight-picking just needs decent timing + rough text, not
+        # publication-quality transcripts — beam_size=1 (greedy) instead of
+        # faster-whisper's default beam_size=5 cuts transcription time
+        # dramatically for a small accuracy cost, and condition_on_previous_text
+        # avoids the extra context-conditioning pass.
         segments_iter, info = model.transcribe(
             audio_path,
             word_timestamps=True,
             vad_filter=True,
+            beam_size=1,
+            condition_on_previous_text=False,
         )
 
         segments = []
