@@ -73,18 +73,17 @@ export function ProgressView({
         })}
       </div>
 
-      <div className="relative h-2 w-full overflow-hidden rounded-full bg-ink-2">
-        <motion.div
-          className="relative h-full overflow-hidden rounded-full bg-ember"
-          animate={{ width: `${progress}%` }}
-          transition={{ duration: 0.4, ease: "easeOut" }}
-        >
+      <div className="flex items-center gap-3">
+        <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-ink-2">
           <motion.div
-            className="absolute inset-y-0 w-10 bg-white/30"
-            animate={{ x: ["-100%", "400%"] }}
-            transition={{ duration: 1.6, repeat: Infinity, ease: "linear" }}
+            className="h-full rounded-full bg-ember"
+            animate={{ width: `${progress}%` }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
           />
-        </motion.div>
+        </div>
+        <span className="w-10 text-right font-mono text-xs tabular-nums text-paper-dim">
+          {Math.round(progress)}%
+        </span>
       </div>
       <p className="mt-4 text-center font-mono text-sm text-paper-dim">{message}</p>
     </div>
