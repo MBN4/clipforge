@@ -11,6 +11,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     ...c,
     videoUrl: toFileUrl(c.videoPath),
     thumbUrl: toFileUrl(c.thumbPath),
+    rawUrl: toFileUrl(c.rawPath),
   }));
 
   return NextResponse.json({ job: { ...job, clips } });

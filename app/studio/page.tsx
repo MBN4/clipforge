@@ -278,7 +278,7 @@ export default function StudioPage() {
             </div>
             <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
               {job.clips.map((c, i) => (
-                <ClipCard key={c.id} clip={c} index={i} />
+                <ClipCard key={c.id} clip={c} index={i} jobId={job.id} />
               ))}
             </div>
           </motion.div>

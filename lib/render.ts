@@ -50,10 +50,10 @@ export async function renderClip(input: RenderClipInput): Promise<RenderClipOutp
   const args = [
     "-ss",
     String(Math.max(0, start)),
-    "-i",
-    sourcePath,
     "-t",
     String(duration),
+    "-i",
+    sourcePath,
     "-filter_complex",
     filters.join(";"),
     "-map",

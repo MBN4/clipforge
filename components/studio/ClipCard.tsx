@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import type { ClipResult } from "@/lib/types";
 
@@ -13,9 +14,11 @@ function fmt(s: number) {
 export function ClipCard({
   clip,
   index,
+  jobId,
 }: {
   clip: ClipResult & { videoUrl: string; thumbUrl: string };
   index: number;
+  jobId: string;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -60,13 +63,21 @@ export function ClipCard({
         </h3>
         <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-paper-dim">{clip.reason}</p>
 
-        <a
-          href={clip.videoUrl}
-          download={`clipforge-${index + 1}.mp4`}
-          className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-paper py-2.5 text-xs font-semibold text-ink transition hover:bg-ember"
-        >
-          Download
-        </a>
+        <div className="mt-4 flex gap-2">
+          <Link
+            href={`/editor/${jobId}/${clip.index}`}
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-line-strong py-2.5 text-xs font-semibold text-paper transition hover:border-ember hover:text-ember"
+          >
+            Edit
+          </Link>
+          <a
+            href={clip.videoUrl}
+            download={`clipforge-${index + 1}.mp4`}
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-paper py-2.5 text-xs font-semibold text-ink transition hover:bg-ember"
+          >
+            Download
+          </a>
+        </div>
       </div>
     </motion.div>
   );

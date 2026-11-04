@@ -84,14 +84,28 @@ export async function runPipeline(
     async function renderOne(i: number) {
       const c = ranked[i];
       const baseName = `clip-${i}`;
-      const { videoPath, thumbPath } = await renderClip({
-        sourcePath,
-        start: c.start,
-        end: c.end,
-        words: c.words,
-        outDir: clipsOut,
-        baseName,
-      });
+      const rawPath = path.join(clipsOut, `raw-${i}.mp4`);
+
+      const [{ videoPath, thumbPath }] = await Promise.all([
+        renderClip({
+          sourcePath,
+          start: c.start,
+          end: c.end,
+          words: c.words,
+          outDir: clipsOut,
+          baseName,
+        }),
+        // Also keep an uncropped, unedited copy of just this window — the
+        // editor works from this rather than the polished render, since the
+        // polished one already has crop/captions baked in permanently.
+        trimSource(sourcePath, c.start, c.end, rawPath),
+      ]);
+
+      const relativeWords = c.words.map((w) => ({
+        word: w.word,
+        start: Math.max(0, w.start - c.start),
+        end: Math.max(0, w.end - c.start),
+      }));
 
       clipsByIndex[i] = {
         id: nanoid(8),
@@ -105,6 +119,8 @@ export async function runPipeline(
         reason: c.reason,
         videoPath: path.relative(process.cwd(), videoPath),
         thumbPath: path.relative(process.cwd(), thumbPath),
+        rawPath: path.relative(process.cwd(), rawPath),
+        words: relativeWords,
       };
 
       completed += 1;
