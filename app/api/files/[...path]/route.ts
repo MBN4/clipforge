@@ -1,11 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "node:fs";
 import path from "node:path";
-import { Readable } from "node:stream";
 import { STORAGE_ROOT } from "@/lib/paths";
 
-function toWebStream(stream: fs.ReadStream) {
-  return Readable.toWeb(stream) as unknown as ReadableStream<Uint8Array>;
+// Wrap a Node fs.ReadStream in a web ReadableStream by hand instead of using
+// Readable.toWeb(): when a <video> element aborts a range request mid-stream
+// (very common while scrubbing/hover-previewing), toWeb() can try to enqueue
+// into an already-closed controller and throw an uncaught exception that
+// crashes the whole dev server. Here every enqueue/close is guarded, and
+// cancel() destroys the underlying fd instead of leaking it.
+function toWebStream(nodeStream: fs.ReadStream): ReadableStream<Uint8Array> {
+  let closed = false;
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      nodeStream.on("data", (chunk) => {
+        if (closed) return;
+        try {
+          controller.enqueue(chunk as Buffer);
+        } catch {
+          closed = true;
+        }
+      });
+      nodeStream.on("end", () => {
+        if (closed) return;
+        closed = true;
+        try {
+          controller.close();
+        } catch {
+          // already closed, ignore
+        }
+      });
+      nodeStream.on("error", (err) => {
+        if (closed) return;
+        closed = true;
+        try {
+          controller.error(err);
+        } catch {
+          // already closed, ignore
+        }
+      });
+    },
+    cancel() {
+      closed = true;
+      nodeStream.destroy();
+    },
+  });
 }
 
 const MIME: Record<string, string> = {
