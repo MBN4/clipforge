@@ -158,25 +158,14 @@ export function selectHighlights(transcript: Transcript, targetCount = DEFAULT_T
     selected = greedySelect(windows, targetCount, 4, transcript.duration);
     if (!selected.length) selected = evenSplit(transcript.duration, targetCount);
   } else {
-    // heuristic segments: treat each speech span as a candidate, split long ones
-    const candidates: Window[] = [];
-    for (const seg of transcript.segments) {
-      const span = seg.end - seg.start;
-      if (span <= MAX_CLIP) {
-        candidates.push({ start: seg.start, end: seg.end, text: "", words: [], score: span, reason: "Detected speech segment" });
-      } else {
-        for (let t = seg.start; t < seg.end; t += MAX_CLIP) {
-          candidates.push({ start: t, end: Math.min(seg.end, t + MAX_CLIP), text: "", words: [], score: 1, reason: "Detected speech segment" });
-        }
-      }
-    }
-    // These candidates are already tiled back-to-back by construction, so a
-    // non-zero gap would wrongly reject two adjacent (but non-overlapping)
-    // slices — e.g. a 70s continuous speech span split into [0-55] and
-    // [55-70] previously lost the second slice entirely.
-    selected = candidates.length
-      ? greedySelect(candidates, targetCount, 0, transcript.duration)
-      : evenSplit(transcript.duration, targetCount);
+    // No real transcript to score candidates by — every detected speech span
+    // ties at the same score, and greedy selection among ties resolves in
+    // chronological order, so it used to silently cluster every pick near
+    // the start of the video (e.g. the first ~6 minutes of a 13-minute
+    // video) instead of covering the whole thing. Spread evenly across the
+    // full duration instead — a much safer default with no real scoring
+    // signal to go on.
+    selected = evenSplit(transcript.duration, targetCount);
   }
 
   if (!selected.length) selected = evenSplit(transcript.duration, targetCount);
