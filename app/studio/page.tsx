@@ -11,6 +11,11 @@ import { ProcessingAmbience } from "@/components/studio/ProcessingAmbience";
 import { TipTicker } from "@/components/studio/TipTicker";
 import { ClipCard } from "@/components/studio/ClipCard";
 import { GameHub } from "@/components/games/GameHub";
+import { SoundToggle } from "@/components/SoundToggle";
+import { ToastStack, type ToastData } from "@/components/Toast";
+import { sfx } from "@/lib/sound";
+import { requestNotificationPermission, notifyJobDone } from "@/lib/notify";
+import { nanoid } from "nanoid";
 import type { Job } from "@/lib/types";
 
 type JobWithUrls = Job & { clips: (Job["clips"][number] & { videoUrl: string; thumbUrl: string })[] };
@@ -44,7 +49,18 @@ export default function StudioPage() {
   const [sourceInfo, setSourceInfo] = useState<SourceInfo | null>(null);
   const [job, setJob] = useState<JobWithUrls | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<ToastData[]>([]);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  function pushToast(title: string, body?: string) {
+    const id = nanoid(6);
+    setToasts((t) => [...t, { id, title, body }]);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 6000);
+  }
+
+  useEffect(() => {
+    requestNotificationPermission();
+  }, []);
 
   const poll = useCallback((id: string) => {
     if (pollRef.current) clearInterval(pollRef.current);
@@ -56,6 +72,15 @@ export default function StudioPage() {
       if (data.job.stage === "done" || data.job.stage === "error") {
         if (pollRef.current) clearInterval(pollRef.current);
         setStep(data.job.stage);
+        if (data.job.stage === "done") {
+          sfx.jobDone();
+          const count = data.job.clips.length;
+          pushToast("Your clips are ready", `${count} ${count === 1 ? "clip" : "clips"} finished rendering`);
+          notifyJobDone("Clipforge", `${count} ${count === 1 ? "clip" : "clips"} ready to post`);
+        } else {
+          pushToast("That one didn't work", data.job.error);
+          notifyJobDone("Clipforge", "Something went wrong with your clip");
+        }
       }
     }, 1500);
   }, []);
@@ -131,20 +156,24 @@ export default function StudioPage() {
   return (
     <>
       {step === "processing" && <ProcessingAmbience />}
+      <ToastStack toasts={toasts} onDismiss={(id) => setToasts((t) => t.filter((x) => x.id !== id))} />
 
       <header className="border-b border-line px-6 py-4">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
           <Link href="/">
             <Logo />
           </Link>
-          {step !== "input" && (
-            <button
-              onClick={reset}
-              className="rounded-full border border-line-strong px-4 py-1.5 text-xs font-semibold text-paper-dim transition hover:text-paper"
-            >
-              New clip
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            <SoundToggle />
+            {step !== "input" && (
+              <button
+                onClick={reset}
+                className="rounded-full border border-line-strong px-4 py-1.5 text-xs font-semibold text-paper-dim transition hover:text-paper"
+              >
+                New clip
+              </button>
+            )}
+          </div>
         </div>
       </header>
 

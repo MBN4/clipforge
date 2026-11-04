@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { sfx } from "@/lib/sound";
 
 const GRID = 18;
 const CELL = 18;
 const SIZE = GRID * CELL;
-const BASE_SPEED = 140;
+
+const SPEEDS = { slow: 180, normal: 140, fast: 95 } as const;
+type Speed = keyof typeof SPEEDS;
 
 type Point = { x: number; y: number };
 
@@ -26,6 +29,7 @@ export function Snake() {
   const [best, setBest] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [running, setRunning] = useState(false);
+  const [speed, setSpeed] = useState<Speed>("normal");
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -75,6 +79,7 @@ export function Snake() {
     const hitSelf = snake.some((s) => s.x === head.x && s.y === head.y);
 
     if (hitWall || hitSelf) {
+      sfx.lose();
       setGameOver(true);
       setRunning(false);
       setBest((b) => Math.max(b, snake.length - 3));
@@ -83,6 +88,7 @@ export function Snake() {
 
     const newSnake = [head, ...snake];
     if (head.x === foodRef.current.x && head.y === foodRef.current.y) {
+      sfx.eat();
       foodRef.current = randomFood(newSnake);
       setScore((s) => s + 1);
     } else {
@@ -98,10 +104,10 @@ export function Snake() {
 
   useEffect(() => {
     if (!running) return;
-    const speed = Math.max(70, BASE_SPEED - score * 3);
-    const id = setInterval(tick, speed);
+    const ms = Math.max(60, SPEEDS[speed] - score * 3);
+    const id = setInterval(tick, ms);
     return () => clearInterval(id);
-  }, [running, tick, score]);
+  }, [running, tick, score, speed]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -140,6 +146,20 @@ export function Snake() {
 
   return (
     <div className="flex flex-col items-center gap-4">
+      <div className="inline-flex rounded-full border border-line-strong bg-ink-3 p-1 text-xs">
+        {(Object.keys(SPEEDS) as Speed[]).map((s) => (
+          <button
+            key={s}
+            disabled={running}
+            onClick={() => setSpeed(s)}
+            className={`rounded-full px-3 py-1 font-semibold capitalize transition disabled:opacity-40 ${
+              speed === s ? "bg-paper text-ink" : "text-paper-dim hover:text-paper"
+            }`}
+          >
+            {s}
+          </button>
+        ))}
+      </div>
       <div className="relative" style={{ width: SIZE, height: SIZE }}>
         <canvas
           ref={canvasRef}

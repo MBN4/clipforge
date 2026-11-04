@@ -2,14 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { sfx } from "@/lib/sound";
 
-const SIZE = 4;
 const CELL = 72;
 const GAP = 8;
-const BOARD = SIZE * CELL + (SIZE + 1) * GAP;
+const SIZES = [4, 5] as const;
+type Size = (typeof SIZES)[number];
 
 interface Tile {
-  id: number;
+  id: string;
   value: number;
   row: number;
   col: number;
@@ -33,21 +34,23 @@ const TILE_COLORS: Record<number, { bg: string; fg: string }> = {
 
 let uid = 1;
 function nextId() {
-  return uid++;
+  // Date.now() mixed in so a Fast Refresh module reload (which resets the
+  // counter to 1) can't collide with ids already rendered from before reload.
+  return `${Date.now().toString(36)}-${(uid++).toString(36)}`;
 }
 
-function emptyGrid(): (Tile | null)[][] {
-  return Array.from({ length: SIZE }, () => Array(SIZE).fill(null));
+function emptyGrid(size: Size): (Tile | null)[][] {
+  return Array.from({ length: size }, () => Array(size).fill(null));
 }
 
 function cloneGrid(grid: (Tile | null)[][]): (Tile | null)[][] {
   return grid.map((row) => row.map((t) => (t ? { ...t } : null)));
 }
 
-function spawnTile(grid: (Tile | null)[][]): Tile | null {
+function spawnTile(grid: (Tile | null)[][], size: Size): Tile | null {
   const empties: [number, number][] = [];
-  for (let r = 0; r < SIZE; r++)
-    for (let c = 0; c < SIZE; c++) if (!grid[r][c]) empties.push([r, c]);
+  for (let r = 0; r < size; r++)
+    for (let c = 0; c < size; c++) if (!grid[r][c]) empties.push([r, c]);
   if (!empties.length) return null;
   const [r, c] = empties[Math.floor(Math.random() * empties.length)];
   const tile: Tile = { id: nextId(), value: Math.random() < 0.9 ? 2 : 4, row: r, col: c, isNew: true };
@@ -55,9 +58,9 @@ function spawnTile(grid: (Tile | null)[][]): Tile | null {
   return tile;
 }
 
-function getLine(grid: (Tile | null)[][], dir: "up" | "down" | "left" | "right", index: number): (Tile | null)[] {
+function getLine(grid: (Tile | null)[][], size: Size, dir: "up" | "down" | "left" | "right", index: number): (Tile | null)[] {
   const line: (Tile | null)[] = [];
-  for (let i = 0; i < SIZE; i++) {
+  for (let i = 0; i < size; i++) {
     if (dir === "left" || dir === "right") line.push(grid[index][i]);
     else line.push(grid[i][index]);
   }
@@ -65,11 +68,24 @@ function getLine(grid: (Tile | null)[][], dir: "up" | "down" | "left" | "right",
   return line;
 }
 
-function setLine(grid: (Tile | null)[][], dir: "up" | "down" | "left" | "right", index: number, line: (Tile | null)[]) {
+function setLine(
+  grid: (Tile | null)[][],
+  size: Size,
+  dir: "up" | "down" | "left" | "right",
+  index: number,
+  line: (Tile | null)[]
+) {
   const ordered = dir === "right" || dir === "down" ? [...line].reverse() : line;
-  for (let i = 0; i < SIZE; i++) {
+  for (let i = 0; i < size; i++) {
     const tile = ordered[i];
-    if (!tile) continue;
+    if (!tile) {
+      // Must explicitly clear empty slots too — otherwise a cell that held a
+      // tile before the shift/merge keeps a stale reference to it, so the
+      // same tile ends up duplicated at both its old and new position.
+      if (dir === "left" || dir === "right") grid[index][i] = null;
+      else grid[i][index] = null;
+      continue;
+    }
     if (dir === "left" || dir === "right") {
       tile.row = index;
       tile.col = i;
@@ -82,7 +98,7 @@ function setLine(grid: (Tile | null)[][], dir: "up" | "down" | "left" | "right",
   }
 }
 
-function mergeLine(line: (Tile | null)[]): { line: (Tile | null)[]; gained: number; moved: boolean } {
+function mergeLine(line: (Tile | null)[], size: Size): { line: (Tile | null)[]; gained: number; moved: boolean } {
   const original = line.map((t) => (t ? `${t.id}:${t.value}` : "_"));
   const compact = line.filter(Boolean) as Tile[];
   const result: (Tile | null)[] = [];
@@ -100,24 +116,28 @@ function mergeLine(line: (Tile | null)[]): { line: (Tile | null)[]; gained: numb
       i += 1;
     }
   }
-  while (result.length < SIZE) result.push(null);
+  while (result.length < size) result.push(null);
 
   const after = result.map((t) => (t ? `${t.id}:${t.value}` : "_"));
   return { line: result, gained, moved: original.join(",") !== after.join(",") };
 }
 
 export function Game2048() {
+  const [size, setSize] = useState<Size>(4);
   const [grid, setGrid] = useState<(Tile | null)[][]>(() => {
-    const g = emptyGrid();
-    spawnTile(g);
-    spawnTile(g);
+    const g = emptyGrid(4);
+    spawnTile(g, 4);
+    spawnTile(g, 4);
     return g;
   });
   const [score, setScore] = useState(0);
   const [best, setBest] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [won, setWon] = useState(false);
+  const [started, setStarted] = useState(false);
   const busyRef = useRef(false);
+
+  const board = size * CELL + (size + 1) * GAP;
 
   const move = useCallback(
     (dir: "up" | "down" | "left" | "right") => {
@@ -127,45 +147,53 @@ export function Game2048() {
         let anyMoved = false;
         let gained = 0;
 
-        for (let i = 0; i < SIZE; i++) {
-          const line = getLine(grid, dir, i);
-          const result = mergeLine(line);
+        for (let i = 0; i < size; i++) {
+          const line = getLine(grid, size, dir, i);
+          const result = mergeLine(line, size);
           if (result.moved) anyMoved = true;
           gained += result.gained;
-          setLine(grid, dir, i, result.line);
+          setLine(grid, size, dir, i, result.line);
         }
 
         if (!anyMoved) return prevGrid;
+        sfx.move();
 
-        for (let r = 0; r < SIZE; r++)
-          for (let c = 0; c < SIZE; c++) {
+        for (let r = 0; r < size; r++)
+          for (let c = 0; c < size; c++) {
             const t = grid[r][c];
-            if (t) {
-              t.isNew = false;
-            }
+            if (t) t.isNew = false;
           }
 
-        spawnTile(grid);
+        spawnTile(grid, size);
 
-        if (gained) setScore((s) => s + gained);
-        if (grid.flat().some((t) => t && t.value >= 2048)) setWon(true);
+        if (gained) {
+          sfx.merge();
+          setScore((s) => s + gained);
+        }
+        if (grid.flat().some((t) => t && t.value >= 2048)) {
+          setWon(true);
+          sfx.win();
+        }
 
         const hasEmpty = grid.flat().some((t) => !t);
-        const canMerge = ["up", "down", "left", "right"].some((d) => {
+        const canMerge = (["up", "down", "left", "right"] as const).some((d) => {
           const test = cloneGrid(grid);
           let moved = false;
-          for (let i = 0; i < SIZE; i++) {
-            const line = getLine(test, d as any, i);
-            if (mergeLine(line).moved) moved = true;
+          for (let i = 0; i < size; i++) {
+            const line = getLine(test, size, d, i);
+            if (mergeLine(line, size).moved) moved = true;
           }
           return moved;
         });
-        if (!hasEmpty && !canMerge) setGameOver(true);
+        if (!hasEmpty && !canMerge) {
+          setGameOver(true);
+          sfx.lose();
+        }
 
         return grid;
       });
     },
-    [gameOver]
+    [gameOver, size]
   );
 
   useEffect(() => {
@@ -187,41 +215,59 @@ export function Game2048() {
       const dir = map[e.key];
       if (!dir) return;
       e.preventDefault();
+      if (!started) setStarted(true);
       move(dir);
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [move]);
+  }, [move, started]);
 
-  function restart() {
-    const g = emptyGrid();
-    spawnTile(g);
-    spawnTile(g);
+  function restart(nextSize: Size = size) {
+    const g = emptyGrid(nextSize);
+    spawnTile(g, nextSize);
+    spawnTile(g, nextSize);
+    setSize(nextSize);
     setGrid(g);
     setScore(0);
     setGameOver(false);
     setWon(false);
+    setStarted(false);
   }
 
   const tiles = grid.flat().filter(Boolean) as Tile[];
 
   return (
     <div className="flex flex-col items-center gap-4">
-      <div className="flex w-full items-center justify-between font-mono text-xs text-paper-dim" style={{ width: BOARD }}>
+      <div className="inline-flex rounded-full border border-line-strong bg-ink-3 p-1 text-xs">
+        {SIZES.map((s) => (
+          <button
+            key={s}
+            disabled={started}
+            onClick={() => restart(s)}
+            className={`rounded-full px-3 py-1 font-semibold transition disabled:opacity-40 ${
+              size === s ? "bg-paper text-ink" : "text-paper-dim hover:text-paper"
+            }`}
+          >
+            {s}×{s}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex w-full items-center justify-between font-mono text-xs text-paper-dim" style={{ width: board }}>
         <span>Score: {score}</span>
         <span>Best: {best}</span>
       </div>
 
       <div
         className="relative rounded-xl border border-line-strong bg-ink-3 shadow-xl shadow-black/40"
-        style={{ width: BOARD, height: BOARD }}
+        style={{ width: board, height: board }}
       >
-        {Array.from({ length: SIZE * SIZE }).map((_, i) => {
-          const r = Math.floor(i / SIZE);
-          const c = i % SIZE;
+        {Array.from({ length: size * size }).map((_, i) => {
+          const r = Math.floor(i / size);
+          const c = i % size;
           return (
             <div
-              key={i}
+              key={`bg-${i}`}
               className="absolute rounded-lg bg-ink/40"
               style={{
                 width: CELL,
@@ -238,7 +284,7 @@ export function Game2048() {
             const colors = TILE_COLORS[t.value] || { bg: "#ffffff", fg: "#141210" };
             return (
               <motion.div
-                key={t.id}
+                key={`tile-${t.id}`}
                 layout
                 initial={{ scale: t.isNew ? 0 : 1, opacity: t.isNew ? 0 : 1 }}
                 animate={{ scale: 1, opacity: 1 }}
@@ -268,7 +314,7 @@ export function Game2048() {
             </p>
             <p className="font-mono text-xs text-paper-dim">Score: {score}</p>
             <button
-              onClick={won ? () => setWon(false) : restart}
+              onClick={won ? () => setWon(false) : () => restart()}
               className="rounded-full bg-ember px-4 py-2 text-xs font-semibold text-ink transition hover:brightness-110"
             >
               {won ? "Keep playing" : "Try again"}

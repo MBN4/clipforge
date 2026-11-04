@@ -53,11 +53,25 @@ function negamax(game: Chess, depth: number, alpha: number, beta: number, sign: 
   return best;
 }
 
-/** Picks a move for the side to move, searching `depth` plies ahead. */
-export function pickBestMove(fen: string, depth = 2): string | null {
+export type Difficulty = "easy" | "medium" | "hard";
+
+const DIFFICULTY_SETTINGS: Record<Difficulty, { depth: number; blunderChance: number }> = {
+  easy: { depth: 1, blunderChance: 0.35 },
+  medium: { depth: 2, blunderChance: 0.05 },
+  hard: { depth: 3, blunderChance: 0 },
+};
+
+/** Picks a move for the side to move, searching ahead according to `difficulty`. */
+export function pickBestMove(fen: string, difficulty: Difficulty = "medium"): string | null {
   const game = new Chess(fen);
   const moves = orderMoves(game.moves({ verbose: true }) as Move[]);
   if (!moves.length) return null;
+
+  const { depth, blunderChance } = DIFFICULTY_SETTINGS[difficulty];
+
+  if (Math.random() < blunderChance) {
+    return moves[Math.floor(Math.random() * moves.length)].san;
+  }
 
   const sign: 1 | -1 = game.turn() === "w" ? 1 : -1;
   let bestMove = moves[0];
