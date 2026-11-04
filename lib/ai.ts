@@ -12,7 +12,8 @@ function buildTranscriptPrompt(transcript: Transcript): string {
 
 export async function aiRankHighlights(
   transcript: Transcript,
-  fallback: SelectedClip[]
+  fallback: SelectedClip[],
+  targetCount: number
 ): Promise<SelectedClip[]> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey || transcript.method !== "whisper") return fallback;
@@ -25,7 +26,7 @@ export async function aiRankHighlights(
 Transcript (timestamps in seconds):
 ${body.slice(0, 12000)}
 
-Pick 4 to 6 non-overlapping clips between 15 and 55 seconds each that would perform best as standalone vertical short videos. Each clip should start and end on natural sentence boundaries.
+Pick exactly ${targetCount} non-overlapping clip${targetCount === 1 ? "" : "s"} between 15 and 55 seconds each that would perform best as standalone vertical short videos. Each clip should start and end on natural sentence boundaries.
 
 Respond with ONLY a JSON array, no prose, like:
 [{"start": 12.4, "end": 38.1, "title": "short punchy title", "hook": "one sentence describing the hook", "reason": "why this works as a short"}]`;

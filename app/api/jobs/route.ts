@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
   let sourceUrl: string | null = null;
   let uploadedPath: string | null = null;
   let source: Job["source"];
+  let clipCount: number | undefined;
 
   if (contentType.includes("multipart/form-data")) {
     const form = await req.formData();
@@ -33,6 +34,8 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
     fs.writeFileSync(uploadedPath, buffer);
     source = { type: "upload", filename: file.name };
+    const rawCount = form.get("clipCount");
+    if (typeof rawCount === "string") clipCount = parseInt(rawCount, 10);
   } else {
     const body = await req.json().catch(() => ({}));
     const url = (body.url || "").trim();
@@ -41,6 +44,7 @@ export async function POST(req: NextRequest) {
     }
     sourceUrl = url;
     source = { type: "url", url, platform: detectPlatform(url) };
+    if (typeof body.clipCount === "number") clipCount = body.clipCount;
   }
 
   const job: Job = {
@@ -55,7 +59,7 @@ export async function POST(req: NextRequest) {
   };
   createJob(job);
 
-  runPipeline(id, sourceUrl, uploadedPath).catch((e) => console.error("pipeline crash", e));
+  runPipeline(id, sourceUrl, uploadedPath, clipCount).catch((e) => console.error("pipeline crash", e));
 
   return NextResponse.json({ id });
 }

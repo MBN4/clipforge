@@ -7,9 +7,10 @@ interface Props {
   onSubmitUrl: (url: string) => void;
   onSubmitFile: (file: File) => void;
   disabled?: boolean;
+  busyLabel?: string | null;
 }
 
-export function SourceInput({ onSubmitUrl, onSubmitFile, disabled }: Props) {
+export function SourceInput({ onSubmitUrl, onSubmitFile, disabled, busyLabel }: Props) {
   const [mode, setMode] = useState<"link" | "upload">("link");
   const [url, setUrl] = useState("");
   const [dragOver, setDragOver] = useState(false);
@@ -57,7 +58,7 @@ export function SourceInput({ onSubmitUrl, onSubmitFile, disabled }: Props) {
               disabled={disabled || !url.trim()}
               className="rounded-2xl bg-ember px-7 py-4 text-sm font-semibold text-ink transition hover:brightness-110 disabled:opacity-40"
             >
-              Clip it
+              {busyLabel || "Continue"}
             </button>
           </motion.form>
         ) : (

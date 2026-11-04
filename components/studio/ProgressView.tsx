@@ -33,13 +33,21 @@ export function ProgressView({
           const active = current === i;
           return (
             <div key={s.key} className="flex flex-1 items-center">
-              <div className="flex flex-col items-center gap-2">
+              <div className="relative flex flex-col items-center gap-2">
+                {active && (
+                  <motion.div
+                    className="absolute top-0 h-8 w-8 rounded-full"
+                    style={{ background: "var(--ember)" }}
+                    animate={{ scale: [1, 1.8], opacity: [0.5, 0] }}
+                    transition={{ duration: 1.4, repeat: Infinity, ease: "easeOut" }}
+                  />
+                )}
                 <motion.div
                   animate={{
                     scale: active ? 1.15 : 1,
                     backgroundColor: done || active ? "var(--ember)" : "var(--ink-3)",
                   }}
-                  className="flex h-8 w-8 items-center justify-center rounded-full border border-line-strong text-xs font-mono text-ink"
+                  className="relative flex h-8 w-8 items-center justify-center rounded-full border border-line-strong text-xs font-mono text-ink"
                 >
                   {done ? "✓" : i + 1}
                 </motion.div>
@@ -65,12 +73,18 @@ export function ProgressView({
         })}
       </div>
 
-      <div className="h-2 w-full overflow-hidden rounded-full bg-ink-2">
+      <div className="relative h-2 w-full overflow-hidden rounded-full bg-ink-2">
         <motion.div
-          className="h-full rounded-full bg-ember"
+          className="relative h-full overflow-hidden rounded-full bg-ember"
           animate={{ width: `${progress}%` }}
           transition={{ duration: 0.4, ease: "easeOut" }}
-        />
+        >
+          <motion.div
+            className="absolute inset-y-0 w-10 bg-white/30"
+            animate={{ x: ["-100%", "400%"] }}
+            transition={{ duration: 1.6, repeat: Infinity, ease: "linear" }}
+          />
+        </motion.div>
       </div>
       <p className="mt-4 text-center font-mono text-sm text-paper-dim">{message}</p>
     </div>

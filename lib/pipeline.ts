@@ -9,9 +9,15 @@ import { transcribe } from "./transcribe";
 import { selectHighlights } from "./highlights";
 import { aiRankHighlights } from "./ai";
 import { renderClip } from "./render";
+import { clampClipCount } from "./clipCount";
 import type { ClipResult } from "./types";
 
-export async function runPipeline(jobId: string, sourceUrl: string | null, uploadedPath: string | null) {
+export async function runPipeline(
+  jobId: string,
+  sourceUrl: string | null,
+  uploadedPath: string | null,
+  requestedClipCount?: number
+) {
   const dir = jobDir(jobId);
   const clipsOut = clipsDir(jobId);
   ensureDir(dir);
@@ -54,8 +60,9 @@ export async function runPipeline(jobId: string, sourceUrl: string | null, uploa
       message: "Finding the best moments…",
     });
 
-    const heuristic = selectHighlights(transcript);
-    const ranked = await aiRankHighlights(transcript, heuristic);
+    const clipCount = clampClipCount(requestedClipCount ?? 4, info.duration);
+    const heuristic = selectHighlights(transcript, clipCount);
+    const ranked = await aiRankHighlights(transcript, heuristic, clipCount);
 
     updateJob(jobId, { stage: "rendering", progress: 60, message: "Cutting vertical clips…" });
 

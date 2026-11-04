@@ -19,7 +19,7 @@ const HOOK_WORDS = [
 
 const MIN_CLIP = 18;
 const MAX_CLIP = 55;
-const TARGET_COUNT = 5;
+const DEFAULT_TARGET_COUNT = 5;
 
 function flattenWords(segments: TranscriptSegment[]): Word[] {
   const words: Word[] = [];
@@ -100,6 +100,18 @@ function greedySelect(windows: Window[], count: number, minGap: number, duration
   return picked.sort((a, b) => a.start - b.start);
 }
 
+function topUp(selected: Window[], targetCount: number, duration: number): Window[] {
+  if (selected.length >= targetCount || duration <= 0) return selected;
+  const extra = evenSplit(duration, targetCount);
+  const result = [...selected];
+  for (const w of extra) {
+    if (result.length >= targetCount) break;
+    const overlaps = result.some((p) => w.start < p.end && w.end > p.start);
+    if (!overlaps) result.push(w);
+  }
+  return result.sort((a, b) => a.start - b.start);
+}
+
 function evenSplit(duration: number, count: number): Window[] {
   const clipLen = Math.min(MAX_CLIP, Math.max(MIN_CLIP, duration / count));
   const windows: Window[] = [];
@@ -134,7 +146,7 @@ function titleFromText(text: string, index: number): { title: string; hook: stri
   return { title: title.replace(/^./, (c) => c.toUpperCase()), hook };
 }
 
-export function selectHighlights(transcript: Transcript): SelectedClip[] {
+export function selectHighlights(transcript: Transcript, targetCount = DEFAULT_TARGET_COUNT): SelectedClip[] {
   const words = flattenWords(transcript.segments);
   let windows =
     transcript.method === "whisper" && words.length
@@ -143,8 +155,8 @@ export function selectHighlights(transcript: Transcript): SelectedClip[] {
 
   let selected: Window[];
   if (windows.length) {
-    selected = greedySelect(windows, TARGET_COUNT, 4, transcript.duration);
-    if (!selected.length) selected = evenSplit(transcript.duration, TARGET_COUNT);
+    selected = greedySelect(windows, targetCount, 4, transcript.duration);
+    if (!selected.length) selected = evenSplit(transcript.duration, targetCount);
   } else {
     // heuristic segments: treat each speech span as a candidate, split long ones
     const candidates: Window[] = [];
@@ -158,12 +170,17 @@ export function selectHighlights(transcript: Transcript): SelectedClip[] {
         }
       }
     }
+    // These candidates are already tiled back-to-back by construction, so a
+    // non-zero gap would wrongly reject two adjacent (but non-overlapping)
+    // slices — e.g. a 70s continuous speech span split into [0-55] and
+    // [55-70] previously lost the second slice entirely.
     selected = candidates.length
-      ? greedySelect(candidates, TARGET_COUNT, 2, transcript.duration)
-      : evenSplit(transcript.duration, TARGET_COUNT);
+      ? greedySelect(candidates, targetCount, 0, transcript.duration)
+      : evenSplit(transcript.duration, targetCount);
   }
 
-  if (!selected.length) selected = evenSplit(transcript.duration, TARGET_COUNT);
+  if (!selected.length) selected = evenSplit(transcript.duration, targetCount);
+  selected = topUp(selected, targetCount, transcript.duration);
 
   return selected.map((w, i) => {
     const { title, hook } = titleFromText(w.text, i);

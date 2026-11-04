@@ -11,6 +11,28 @@ export function detectPlatform(url: string): string {
   return "Video";
 }
 
+export interface UrlInfo {
+  duration: number;
+  title: string;
+  thumbnail?: string;
+}
+
+export async function probeUrl(url: string): Promise<UrlInfo> {
+  const { stdout } = await run("yt-dlp", [
+    "--no-playlist",
+    "--skip-download",
+    "--dump-json",
+    "--no-warnings",
+    url,
+  ]);
+  const data = JSON.parse(stdout.trim().split("\n")[0]);
+  return {
+    duration: Number(data.duration) || 0,
+    title: data.title || "Untitled video",
+    thumbnail: data.thumbnail,
+  };
+}
+
 export async function downloadFromUrl(url: string, destDir: string): Promise<string> {
   const outTemplate = path.join(destDir, "source.%(ext)s");
   await run("yt-dlp", [
