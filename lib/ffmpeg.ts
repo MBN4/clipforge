@@ -47,3 +47,21 @@ export async function probe(file: string): Promise<ProbeInfo> {
 export async function ffmpeg(args: string[]) {
   return run("ffmpeg", ["-y", "-hide_banner", "-loglevel", "error", ...args]);
 }
+
+/** Fast stream-copy trim (no re-encode) — used to scope a long upload down to
+ * the range the user asked about before transcription/rendering touch it. */
+export async function trimSource(sourcePath: string, start: number, end: number, outPath: string) {
+  await ffmpeg([
+    "-ss",
+    String(Math.max(0, start)),
+    "-i",
+    sourcePath,
+    "-t",
+    String(Math.max(end - start, 1)),
+    "-c",
+    "copy",
+    "-avoid_negative_ts",
+    "make_zero",
+    outPath,
+  ]);
+}

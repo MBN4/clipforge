@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Chess, type Square } from "chess.js";
 import { motion, AnimatePresence } from "framer-motion";
-import { pickBestMove, type Difficulty } from "@/lib/games/chessAi";
+import { pickBestMove, positionKey, type Difficulty } from "@/lib/games/chessAi";
 import { MODES, startingFen, checkModeWin, type GameMode } from "@/lib/games/chessModes";
 import { ChessPiece } from "./ChessPieces";
 import { sfx } from "@/lib/sound";
@@ -22,6 +22,7 @@ export function Chessboard() {
   const [mode, setMode] = useState<GameMode>("classic");
   const [difficulty, setDifficulty] = useState<Difficulty>("medium");
   const gameRef = useRef(new Chess(startingFen("classic")));
+  const historyRef = useRef<string[]>([positionKey(gameRef.current.fen())]);
   const [fen, setFen] = useState(gameRef.current.fen());
   const [selected, setSelected] = useState<Square | null>(null);
   const [thinking, setThinking] = useState(false);
@@ -33,6 +34,7 @@ export function Chessboard() {
 
   function startGame(nextMode: GameMode) {
     gameRef.current = new Chess(startingFen(nextMode));
+    historyRef.current = [positionKey(gameRef.current.fen())];
     setMode(nextMode);
     setFen(gameRef.current.fen());
     setSelected(null);
@@ -59,6 +61,7 @@ export function Chessboard() {
   }
 
   function applyMoveEffects(moverColor: "w" | "b", captured: boolean) {
+    historyRef.current.push(positionKey(game.fen()));
     const deliveredCheck = game.isCheck();
     if (deliveredCheck) sfx.check();
     else if (captured) sfx.capture();
@@ -90,7 +93,7 @@ export function Chessboard() {
 
     setThinking(true);
     setTimeout(() => {
-      const san = pickBestMove(game.fen(), difficulty);
+      const san = pickBestMove(game.fen(), difficulty, historyRef.current);
       if (san) {
         const move = game.move(san);
         if (move) {
@@ -143,6 +146,9 @@ export function Chessboard() {
           </button>
         ))}
       </div>
+      <p className="max-w-[300px] text-center text-[11px] text-paper-dim">
+        {MODES.find((m) => m.key === mode)?.blurb}
+      </p>
 
       <div className="inline-flex rounded-full border border-line-strong bg-ink-3 p-1 text-xs">
         {DIFFICULTIES.map((d) => (

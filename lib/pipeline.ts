@@ -3,8 +3,8 @@ import fs from "node:fs";
 import { nanoid } from "nanoid";
 import { updateJob, getJob } from "./store";
 import { ensureDir, jobDir, clipsDir } from "./paths";
-import { downloadFromUrl } from "./download";
-import { probe } from "./ffmpeg";
+import { downloadFromUrl, type TimeRange } from "./download";
+import { probe, trimSource } from "./ffmpeg";
 import { transcribe } from "./transcribe";
 import { selectHighlights } from "./highlights";
 import { aiRankHighlights } from "./ai";
@@ -16,7 +16,8 @@ export async function runPipeline(
   jobId: string,
   sourceUrl: string | null,
   uploadedPath: string | null,
-  requestedClipCount?: number
+  requestedClipCount?: number,
+  range?: TimeRange
 ) {
   const dir = jobDir(jobId);
   const clipsOut = clipsDir(jobId);
@@ -29,7 +30,7 @@ export async function runPipeline(
     if (sourceUrl) {
       updateJob(jobId, { stage: "downloading", progress: 8, message: "Fetching video…" });
       try {
-        sourcePath = await downloadFromUrl(sourceUrl, dir);
+        sourcePath = await downloadFromUrl(sourceUrl, dir, range);
       } catch (e: any) {
         console.error("[pipeline] download failed", e);
         throw new Error(
@@ -38,6 +39,12 @@ export async function runPipeline(
       }
     } else if (uploadedPath) {
       sourcePath = uploadedPath;
+      if (range) {
+        updateJob(jobId, { stage: "downloading", progress: 8, message: "Trimming to the selected range…" });
+        const trimmedPath = path.join(dir, `trimmed${path.extname(uploadedPath) || ".mp4"}`);
+        await trimSource(uploadedPath, range.start, range.end, trimmedPath);
+        sourcePath = trimmedPath;
+      }
     } else {
       throw new Error("No source provided");
     }

@@ -116,7 +116,7 @@ export default function StudioPage() {
     setStep("configuring");
   }
 
-  async function confirmClipCount(count: number) {
+  async function confirmClipCount(count: number, range?: { start: number; end: number }) {
     if (!pending) return;
     setError(null);
     try {
@@ -125,12 +125,21 @@ export default function StudioPage() {
         res = await fetch("/api/jobs", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ url: pending.url, clipCount: count }),
+          body: JSON.stringify({
+            url: pending.url,
+            clipCount: count,
+            rangeStart: range?.start,
+            rangeEnd: range?.end,
+          }),
         });
       } else {
         const form = new FormData();
         form.append("file", pending.file);
         form.append("clipCount", String(count));
+        if (range) {
+          form.append("rangeStart", String(range.start));
+          form.append("rangeEnd", String(range.end));
+        }
         res = await fetch("/api/jobs", { method: "POST", body: form });
       }
       const data = await res.json();

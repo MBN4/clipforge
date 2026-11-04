@@ -4,11 +4,17 @@ export interface ClipCountRange {
   default: number;
 }
 
+// A clip needs ~18-55s of content, so roughly one usable clip per 20s of
+// source is a sane ceiling — but the UI shouldn't ever be limited to a flat
+// number regardless of length. Long (1hr+) videos should unlock noticeably
+// more options than a 2-minute clip.
+const ABSOLUTE_MAX = 40;
+
 export function clipCountRange(durationSeconds: number): ClipCountRange {
   if (!durationSeconds || durationSeconds <= 0) {
     return { min: 1, max: 6, default: 3 };
   }
-  const max = Math.max(1, Math.min(10, Math.floor(durationSeconds / 20)));
+  const max = Math.max(1, Math.min(ABSOLUTE_MAX, Math.floor(durationSeconds / 20)));
   const def = Math.max(1, Math.min(max, Math.round(durationSeconds / 45)));
   return { min: 1, max, default: def || 1 };
 }

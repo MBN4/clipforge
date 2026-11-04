@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Chessboard } from "./Chessboard";
 import { Snake } from "./Snake";
@@ -30,7 +30,9 @@ export function GameHub() {
   const [active, setActive] = useState<GameKey>("chess");
   const [open, setOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [scale, setScale] = useState(1);
   const panelRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function onChange() {
@@ -39,6 +41,37 @@ export function GameHub() {
     document.addEventListener("fullscreenchange", onChange);
     return () => document.removeEventListener("fullscreenchange", onChange);
   }, []);
+
+  useLayoutEffect(() => {
+    if (!fullscreen) {
+      setScale(1);
+      return;
+    }
+
+    function recompute() {
+      const el = contentRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      // rect reflects whatever scale is currently applied (framer-motion
+      // owns the transform), so divide it back out to get the natural size.
+      setScale((currentScale) => {
+        const naturalW = rect.width / currentScale;
+        const naturalH = rect.height / currentScale;
+        const availW = window.innerWidth - 60;
+        const availH = (window.innerHeight - 140) * 1.6;
+        const next = Math.max(1, Math.min(availW / naturalW, availH / naturalH));
+        return Math.min(next, 2.8);
+      });
+    }
+
+    const raf = requestAnimationFrame(recompute);
+    window.addEventListener("resize", recompute);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", recompute);
+    };
+  }, [fullscreen, active]);
 
   async function toggleFullscreen() {
     if (!panelRef.current) return;
@@ -70,11 +103,11 @@ export function GameHub() {
           >
             <div
               ref={panelRef}
-              className={`mt-5 rounded-3xl border border-line-strong bg-ink-2 p-5 ${
-                fullscreen ? "flex h-screen w-screen flex-col items-center justify-center" : ""
+              className={`relative mt-5 rounded-3xl border border-line-strong bg-ink-2 p-5 ${
+                fullscreen ? "flex h-screen w-screen flex-col items-center justify-center overflow-auto" : ""
               }`}
             >
-              <div className="mb-5 flex items-center gap-2">
+              <div className={`mb-5 flex items-center gap-2 ${fullscreen ? "absolute top-6" : ""}`}>
                 <div className="inline-flex rounded-full border border-line-strong bg-ink-3 p-1 text-sm">
                   {GAMES.map((g) => (
                     <button
@@ -100,12 +133,13 @@ export function GameHub() {
               <AnimatePresence mode="wait">
                 <motion.div
                   key={active}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
+                  ref={contentRef}
+                  initial={{ opacity: 0, y: 8, scale: fullscreen ? scale : 1 }}
+                  animate={{ opacity: 1, y: 0, scale: fullscreen ? scale : 1 }}
                   exit={{ opacity: 0, y: -8 }}
                   transition={{ duration: 0.18 }}
                   className="flex justify-center"
-                  style={fullscreen ? { transform: "scale(1.5)" } : undefined}
+                  style={{ transformOrigin: "top center" }}
                 >
                   {active === "chess" && <Chessboard />}
                   {active === "snake" && <Snake />}

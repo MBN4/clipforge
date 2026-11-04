@@ -34,9 +34,9 @@ const SHAPES: Record<PieceType, React.ReactNode> = {
   ),
   n: (
     <>
-      <path d="M62 86 H34 L36 66 Q26 64 24 50 Q23 36 38 26 Q46 20 52 22 L48 30 Q58 28 64 38 Q70 48 64 56 L58 54 Q62 62 60 70 Z" />
-      <circle cx="43" cy="37" r="2.6" fill="var(--ink-2)" stroke="none" />
-      <rect x="26" y="86" width="48" height="7" rx="3" />
+      <path d="M16 56 Q18 44 26 36 Q24 28 32 22 L28 10 L38 20 Q46 16 54 20 Q62 24 62 32 L72 28 L66 38 L76 36 L68 46 Q70 56 66 64 L68 86 L42 86 L36 70 Q28 64 24 56 Z" />
+      <circle cx="38" cy="32" r="2.6" fill="currentColor" stroke="none" />
+      <rect x="22" y="86" width="52" height="7" rx="3" />
     </>
   ),
   q: (
