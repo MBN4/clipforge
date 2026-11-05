@@ -158,7 +158,7 @@ export async function exportClip({ rawPath, outDir, baseName, spec }: ExportInpu
     "-c:v",
     "libx264",
     "-preset",
-    "superfast",
+    "ultrafast",
     "-crf",
     "21",
     "-c:a",
