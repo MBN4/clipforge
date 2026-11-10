@@ -3,25 +3,13 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { motion } from "framer-motion";
 import { StickerIcon } from "./StickerIcon";
+import { CaptionOverlay } from "./CaptionOverlay";
 import type { EditorState } from "@/app/editor/[jobId]/[clipIndex]/page";
 import type { TextOverlaySpec, StickerSpec, CropSpec } from "@/lib/types";
 import type { ToolKey } from "./ToolTabs";
 
 const BOX_WIDTH = 340;
 const BOX_HEIGHT = (BOX_WIDTH * 16) / 9;
-
-function activeCaptionText(state: EditorState, t: number): string | null {
-  if (!state.captionsEnabled) return null;
-  const chunk = state.captionChunks.find((c) => t >= c.start && t <= c.end);
-  if (!chunk) return null;
-  return state.captionStyle.uppercase ? chunk.text.toUpperCase() : chunk.text;
-}
-
-const POSITION_STYLE: Record<string, string> = {
-  bottom: "items-end pb-10",
-  middle: "items-center",
-  top: "items-start pt-10",
-};
 
 export function PreviewStage({
   rawUrl,
@@ -34,6 +22,7 @@ export function PreviewStage({
   onUpdateCrop,
   onUpdateTextOverlay,
   onUpdateSticker,
+  onUpdateCaptionY,
   activeTool,
 }: {
   rawUrl: string;
@@ -46,6 +35,7 @@ export function PreviewStage({
   onUpdateCrop: (crop: CropSpec) => void;
   onUpdateTextOverlay: (id: string, patch: Partial<TextOverlaySpec>) => void;
   onUpdateSticker: (id: string, patch: Partial<StickerSpec>) => void;
+  onUpdateCaptionY: (y: number) => void;
   activeTool: ToolKey;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -98,7 +88,6 @@ export function PreviewStage({
     setPanning(false);
   }
 
-  const caption = activeCaptionText(state, currentTime);
   const scale = BOX_WIDTH / 1080;
 
   return (
@@ -139,22 +128,18 @@ export function PreviewStage({
           }}
         />
 
-        {/* captions */}
-        {caption && (
-          <div className={`pointer-events-none absolute inset-0 flex justify-center px-4 ${POSITION_STYLE[state.captionStyle.position]}`}>
-            <span
-              className="text-center font-black leading-tight"
-              style={{
-                color: state.captionStyle.color,
-                WebkitTextStroke: `${3 * scale}px ${state.captionStyle.highlightColor}`,
-                paintOrder: "stroke fill",
-                fontSize: state.captionStyle.fontSize * scale,
-                fontFamily: state.captionStyle.fontFamily,
-              }}
-            >
-              {caption}
-            </span>
-          </div>
+        {/* captions (animated; mirrors the libass export) */}
+        {state.captionsEnabled && (
+          <CaptionOverlay
+            videoRef={videoRef}
+            fallbackTime={currentTime}
+            chunks={state.captionChunks}
+            style={state.captionStyle}
+            scale={scale}
+            stageHeight={BOX_HEIGHT}
+            draggable={activeTool === "captions"}
+            onChangePositionY={onUpdateCaptionY}
+          />
         )}
 
         {/* text overlays */}

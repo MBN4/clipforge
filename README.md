@@ -11,8 +11,11 @@ before exporting. Free, no watermark, no account.
 - `ffmpeg` / `ffprobe` on PATH, built with `libass` (captions) and `librsvg`
   (sticker overlays) — most distro ffmpeg builds already include both
 - Python 3.10+ with `pip install yt-dlp faster-whisper`
+- libass 0.17+ (Ubuntu 24.04 / Debian 12 and newer) for the caption
+  "background box" option — everything else works on older libass too
 - A system font covering Latin text in bold (DejaVu Sans / Liberation Sans are
-  assumed by default on Linux) — used for captions and text overlays
+  assumed by default on Linux) — used for text overlays. Caption fonts are
+  bundled in `public/fonts/`, so captions don't depend on what's installed
 
 ## Running locally
 
@@ -44,11 +47,12 @@ Open http://localhost:3000.
    instead of a harsh crop — the backdrop is blurred at quarter resolution and
    scaled back up, since blur cost scales with pixel count and the detail loss
    isn't visible once blurred anyway), and burns in word-grouped captions via
-   libass. Clips render with bounded concurrency (3 at a time) rather than
-   sequentially.
+   libass, animated by default (each caption pops in and the spoken word is
+   highlighted). Clips render with bounded concurrency (3 at a time) rather
+   than sequentially.
 5. **Edit** (`app/editor/[jobId]/[clipIndex]`, `lib/exportRender.ts`) — every
    clip can be opened in a real in-browser editor: trim, reframe (drag-to-pan
-   + zoom over the original footage), edit caption text/timing/style, add
+   + zoom over the original footage), style animated captions (see below), add
    draggable text overlays and stickers, apply color filters, mix in a music
    track. Everything previews live in the browser; **Export** renders the
    final file in a single `ffmpeg` pass combining every edit.
@@ -58,6 +62,42 @@ Jobs are tracked in-memory with an async-persisted `storage/db.json` snapshot
 few concurrent users). Output files, raw per-clip segments (the editor's
 working source), and uploaded music live under `storage/jobs/<id>/` and are
 streamed through `/api/files/*`.
+
+## Animated captions
+
+The editor's **Captions** tab gives you full control of how captions look and
+move:
+
+- **Presets:** Spotlight, Karaoke, Word box, Bouncy, Neon, Typewriter, Comic,
+  Marker and Clean. One click applies a preset, and you can tweak anything
+  after that.
+- **Entrance animation:** none, fade, pop, bounce, slide up, zoom in, swing.
+- **Word effects:** these follow the transcript's word timings.
+  - Highlight: the spoken word changes colour.
+  - Word pop: the spoken word scales up and changes colour.
+  - Karaoke: colour sweeps across each word as it's said.
+  - Word box: a coloured box sits behind the spoken word.
+  - Reveal: words appear as they're spoken.
+  - Glow: the spoken word glows.
+- **Text:** 7 bundled fonts plus the system ones, size, letter spacing,
+  uppercase, and words per caption (1–6).
+- **Colours and effects:** text and highlight colours, outline colour and
+  width, drop-shadow colour, distance and opacity, and an optional background
+  box.
+- **Position:** presets or a slider, or drag the caption on the preview.
+
+The last style you used is remembered in your browser for the next clip.
+
+How it works: `lib/captions.ts` holds the keyframes and word timing.
+`components/editor/CaptionOverlay.tsx` plays them back live, reading the
+video clock every frame. The export turns the same keyframes into libass
+override tags: `\t` transforms, `\kf` karaoke, and one event per spoken
+word for word effects. Because both renderers read from one place, the
+preview matches the exported file. Fonts in `public/fonts/` are loaded with
+`@font-face` in the browser and passed to ffmpeg's `ass` filter as
+`fontsdir`, and `lib/captionFonts.ts` corrects for how libass sizes fonts
+compared with CSS. All fonts are free to redistribute; see
+`public/FONT-LICENSES.md`.
 
 ## The mini-arcade
 
@@ -100,9 +140,11 @@ sticking to direct upload only, before shipping this to the public.
   graph combining trim, crop/zoom/pan, color grading, stickers (SVG via
   `librsvg`, since `drawtext` can't rasterize color emoji fonts at arbitrary
   sizes), text, captions, and audio mixing.
-- `lib/captions.ts` — ASS subtitle generation, parameterized by style
-  (font/size/colors/position) so both the default render and the editor can
-  use it.
+- `lib/captions.ts` — animated caption engine: styles, presets, validation,
+  word timing, animation keyframes, and ASS generation (used by both the
+  default render and the editor export).
+- `lib/captionFonts.ts` — caption font registry (CSS ↔ libass names and
+  size metrics).
 - `lib/games/` — chess AI (`chessAi.ts`) and modes (`chessModes.ts`).
 - `components/editor/` — the in-browser clip editor UI.
 - `components/games/` — Chessboard, Snake, Game2048, and the GameHub tab

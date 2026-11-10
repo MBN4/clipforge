@@ -82,3 +82,14 @@ body {
 .animate-marquee {
   animation: marquee 32s linear infinite;
 }
+
+/* Caption fonts — the same files libass uses for the export (lib/captionFonts.ts).
+   Declared with a full weight range so the browser never synthesizes bold,
+   matching libass, which is told not to embolden these single-weight faces. */
+@font-face { font-family: "Poppins"; src: url("/fonts/Poppins-ExtraBold.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Anton"; src: url("/fonts/Anton-Regular.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Bebas Neue"; src: url("/fonts/BebasNeue-Regular.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Archivo Black"; src: url("/fonts/ArchivoBlack-Regular.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Luckiest Guy"; src: url("/fonts/LuckiestGuy-Regular.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Bangers"; src: url("/fonts/Bangers-Regular.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Permanent Marker"; src: url("/fonts/PermanentMarker-Regular.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }

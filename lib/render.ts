@@ -2,6 +2,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { ffmpeg } from "./ffmpeg";
 import { buildAssFromWords } from "./captions";
+import { CAPTION_FONTS_DIR } from "./paths";
 import type { Word } from "./types";
 
 export interface RenderClipInput {
@@ -48,7 +49,7 @@ export async function renderClip(input: RenderClipInput): Promise<RenderClipOutp
 
   let videoOut = "[base]";
   if (hasCaptions) {
-    filters.push(`[base]ass=${escapeForFilter(assPath)}[capped]`);
+    filters.push(`[base]ass=${escapeForFilter(assPath)}:fontsdir=${escapeForFilter(CAPTION_FONTS_DIR)}[capped]`);
     videoOut = "[capped]";
   }
 

@@ -7,3 +7,5 @@ process.on("uncaughtException", (err) => {
 process.on("unhandledRejection", (err) => {
   console.error("[unhandledRejection] swallowed to keep the server alive:", err);
 });
+
+export {};
