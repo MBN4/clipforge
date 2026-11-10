@@ -1,7 +1,8 @@
 import path from "node:path";
 import fs from "node:fs";
 import { ffmpeg } from "./ffmpeg";
-import { buildAssFromChunks } from "./captions";
+import { buildAssFromChunks, normalizeCaptionStyle, normalizeChunks } from "./captions";
+import { CAPTION_FONTS_DIR } from "./paths";
 import { writeStickerSvg } from "./stickers";
 import type { ExportSpec } from "./types";
 
@@ -114,19 +115,24 @@ export async function exportClip({ rawPath, outDir, baseName, spec }: ExportInpu
 
   // --- captions ---
   let assPath: string | null = null;
-  if (captions.enabled && captions.chunks.length) {
-    const shiftedChunks = captions.chunks
+  const captionChunks = normalizeChunks(captions?.chunks);
+  if (captions?.enabled && captionChunks.length) {
+    const shiftedChunks = captionChunks
       .map((c2) => {
         const win = shiftIntoTrim(c2.start, c2.end, trim.start, trim.end);
-        return win ? { text: c2.text, start: win.start, end: win.end } : null;
+        if (!win) return null;
+        const words = c2.words?.map((w) => ({ word: w.word, start: w.start - trim.start, end: w.end - trim.start }));
+        return { text: c2.text, start: win.start, end: win.end, words };
       })
       .filter((c2): c2 is NonNullable<typeof c2> => !!c2);
 
     if (shiftedChunks.length) {
       assPath = path.join(outDir, `${baseName}-captions.ass`);
-      fs.writeFileSync(assPath, buildAssFromChunks(shiftedChunks, captions.style));
+      fs.writeFileSync(assPath, buildAssFromChunks(shiftedChunks, normalizeCaptionStyle(captions.style)));
       const nextLabel = "capped";
-      videoFilters.push(`[${vLabel}]ass=${escapeForFilterPath(assPath)}[${nextLabel}]`);
+      videoFilters.push(
+        `[${vLabel}]ass=${escapeForFilterPath(assPath)}:fontsdir=${escapeForFilterPath(CAPTION_FONTS_DIR)}[${nextLabel}]`
+      );
       vLabel = nextLabel;
     }
   }

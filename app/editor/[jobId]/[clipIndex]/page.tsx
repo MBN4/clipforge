@@ -15,7 +15,13 @@ import { TextPanel } from "@/components/editor/panels/TextPanel";
 import { StickersPanel } from "@/components/editor/panels/StickersPanel";
 import { FiltersPanel } from "@/components/editor/panels/FiltersPanel";
 import { MusicPanel } from "@/components/editor/panels/MusicPanel";
-import { groupWordsIntoChunks, DEFAULT_CAPTION_STYLE, type CaptionChunk, type CaptionStyle } from "@/lib/captions";
+import {
+  groupWordsIntoChunks,
+  normalizeCaptionStyle,
+  DEFAULT_CAPTION_STYLE,
+  type CaptionChunk,
+  type CaptionStyle,
+} from "@/lib/captions";
 import { nanoid } from "nanoid";
 import { sfx } from "@/lib/sound";
 import type { TextOverlaySpec, StickerSpec, CropSpec, FilterSpec, Word } from "@/lib/types";
@@ -50,6 +56,34 @@ export interface EditorState {
 
 const DEFAULT_FILTERS: FilterSpec = { brightness: 0, contrast: 0, saturation: 0 };
 const DEFAULT_CROP: CropSpec = { x: 0.5, y: 0.5, zoom: 1 };
+const DEFAULT_WORDS_PER_CAPTION = 3;
+
+// The last caption look the user picked is remembered (per browser) and
+// used as the starting style for the next clip they open.
+const CAPTION_PREFS_KEY = "clipforge.captionPrefs.v1";
+
+function loadCaptionPrefs(): { style: CaptionStyle; wordsPerCaption: number } | null {
+  try {
+    const raw = localStorage.getItem(CAPTION_PREFS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const n = Math.round(Number(parsed?.wordsPerCaption));
+    return {
+      style: normalizeCaptionStyle(parsed?.style),
+      wordsPerCaption: n >= 1 && n <= 6 ? n : DEFAULT_WORDS_PER_CAPTION,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function saveCaptionPrefs(style: CaptionStyle, wordsPerCaption: number) {
+  try {
+    localStorage.setItem(CAPTION_PREFS_KEY, JSON.stringify({ style, wordsPerCaption }));
+  } catch {
+    // storage unavailable (private mode etc.) — preference just isn't remembered
+  }
+}
 
 export default function EditorPage() {
   const params = useParams<{ jobId: string; clipIndex: string }>();
@@ -65,6 +99,8 @@ export default function EditorPage() {
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportedUrl, setExportedUrl] = useState<string | null>(null);
+  const [wordsPerCaption, setWordsPerCaption] = useState(DEFAULT_WORDS_PER_CAPTION);
+  const prefsLoaded = useRef(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -95,17 +131,32 @@ export default function EditorPage() {
         return;
       }
       if (cancelled) return;
+      const prefs = loadCaptionPrefs();
+      const perCaption = prefs?.wordsPerCaption ?? DEFAULT_WORDS_PER_CAPTION;
       setClip({ index: found.index, title: found.title, duration: found.duration, rawUrl: found.rawUrl, words: found.words });
+      setWordsPerCaption(perCaption);
       setState((s) => ({
         ...s,
         trim: { start: 0, end: found.duration },
-        captionChunks: groupWordsIntoChunks(found.words, 3),
+        captionChunks: groupWordsIntoChunks(found.words, perCaption),
+        captionStyle: prefs?.style ?? s.captionStyle,
       }));
+      prefsLoaded.current = true;
     })();
     return () => {
       cancelled = true;
     };
   }, [jobId, clipIndex]);
+
+  useEffect(() => {
+    if (prefsLoaded.current) saveCaptionPrefs(state.captionStyle, wordsPerCaption);
+  }, [state.captionStyle, wordsPerCaption]);
+
+  function regroupCaptions(n: number) {
+    if (!clip) return;
+    setWordsPerCaption(n);
+    update("captionChunks", groupWordsIntoChunks(clip.words, n));
+  }
 
   function update<K extends keyof EditorState>(key: K, value: EditorState[K]) {
     setState((s) => ({ ...s, [key]: value }));
@@ -233,6 +284,7 @@ export default function EditorPage() {
                 state.stickers.map((s) => (s.id === id ? { ...s, ...patch } : s))
               )
             }
+            onUpdateCaptionY={(y) => setState((s) => ({ ...s, captionStyle: { ...s.captionStyle, positionY: y } }))}
             activeTool={tool}
           />
           <TrimBar
@@ -259,6 +311,9 @@ export default function EditorPage() {
                 onChangeChunks={(c) => update("captionChunks", c)}
                 style={state.captionStyle}
                 onChangeStyle={(s) => update("captionStyle", s)}
+                wordsPerCaption={wordsPerCaption}
+                onRegroup={regroupCaptions}
+                canRegroup={clip.words.length > 0}
               />
             )}
             {tool === "reframe" && <ReframePanel crop={state.crop} onChange={(c) => update("crop", c)} />}

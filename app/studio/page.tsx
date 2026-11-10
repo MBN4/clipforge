@@ -18,7 +18,7 @@ import { requestNotificationPermission, notifyJobDone } from "@/lib/notify";
 import { nanoid } from "nanoid";
 import type { Job } from "@/lib/types";
 
-type JobWithUrls = Job & { clips: (Job["clips"][number] & { videoUrl: string; thumbUrl: string })[] };
+type JobWithUrls = Omit<Job, "clips"> & { clips: (Job["clips"][number] & { videoUrl: string; thumbUrl: string })[] };
 
 type PendingSource = { type: "url"; url: string } | { type: "upload"; file: File };
 
@@ -144,7 +144,7 @@ export default function StudioPage() {
       }
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to start");
-      setJob({ id: data.id, stage: "queued", progress: 0, message: "Queued…", clips: [] } as JobWithUrls);
+      setJob({ id: data.id, stage: "queued", progress: 0, message: "Queued…", clips: [] } as unknown as JobWithUrls);
       setStep("processing");
       poll(data.id);
     } catch (e: any) {
