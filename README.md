@@ -1,9 +1,10 @@
 # Clipforge
 
 Paste a YouTube / Instagram / TikTok / Facebook link, or upload a file — Clipforge
-transcribes it, finds the best moments, reframes them to 9:16, burns in captions,
-and gives you ready-to-post shorts. Then edit any clip in a real in-browser editor
-before exporting. Free, no watermark, no account.
+transcribes it, finds the best moments, reframes them to 9:16, burns in animated
+word-by-word captions, and gives you ready-to-post shorts. Then edit any clip in
+a real in-browser editor, including fully customizable caption styles and
+animations, before exporting. Free, no watermark, no account.
 
 ## Requirements
 
@@ -25,6 +26,15 @@ npm run dev
 ```
 
 Open http://localhost:3000.
+
+For a production build:
+
+```bash
+npm run build
+npm start
+```
+
+`npm run lint` runs ESLint.
 
 ## How it works
 
@@ -99,6 +109,22 @@ preview matches the exported file. Fonts in `public/fonts/` are loaded with
 compared with CSS. All fonts are free to redistribute; see
 `public/FONT-LICENSES.md`.
 
+### Adding a caption font
+
+1. Drop the `.ttf` into `public/fonts/` and add its license to
+   `public/FONT-LICENSES.md`.
+2. Add an `@font-face` rule for it in `app/globals.css`.
+3. Add an entry to `CAPTION_FONT_LIST` in `lib/captionFonts.ts`:
+   - `assFamily`: set this only if libass needs a different name than the
+     CSS family. Static non-regular weights often do, e.g.
+     "Poppins ExtraBold".
+   - `cssScale`: `unitsPerEm / (usWinAscent + usWinDescent)`, taken from
+     the font's `head` and `OS/2` tables.
+4. Check that libass picks the file you expect. Render a caption with
+   `ffmpeg -v verbose ... -vf ass=file.ass:fontsdir=public/fonts` and look
+   at the `fontselect:` line. If the name doesn't match, libass quietly
+   falls back to some other installed font.
+
 ## The mini-arcade
 
 The processing screen includes a collapsible arcade so waiting isn't dead
@@ -126,8 +152,18 @@ sticking to direct upload only, before shipping this to the public.
   server runs. Add auth before deploying multi-tenant.
 - Whisper model download requires one-time network access to huggingface.co.
 - The editor is well-built for short-form clips, not a from-scratch
-  Premiere/CapCut clone — no multi-track timeline, transitions, keyframed
-  animation, or undo history.
+  Premiere/CapCut clone — no multi-track timeline, transitions, custom
+  keyframed animation of overlays, or undo history.
+- Word-level caption effects need Whisper's word timings. If you edit a
+  caption's text so its word count changes, that caption's words are
+  re-timed evenly across its duration. Clips made by the silence-detection
+  fallback have no transcript, so they have no captions to animate (you can
+  still add caption text by hand).
+- With the "Word pop" effect, the popping word pushes its neighbours aside
+  slightly in the exported video but not in the preview. libass lays out
+  scaled text, while CSS transforms don't affect layout.
+- Caption styles are remembered per browser (`localStorage`), not per job or
+  account.
 - Chess/Snake/2048 are genuinely playable but intentionally scoped (e.g. no
   true chess variants like Atomic/Horde, which would need a custom rules
   engine rather than a layer on top of `chess.js`).
@@ -145,7 +181,11 @@ sticking to direct upload only, before shipping this to the public.
   default render and the editor export).
 - `lib/captionFonts.ts` — caption font registry (CSS ↔ libass names and
   size metrics).
+- `public/fonts/` — bundled caption fonts (licenses in
+  `public/FONT-LICENSES.md`).
 - `lib/games/` — chess AI (`chessAi.ts`) and modes (`chessModes.ts`).
 - `components/editor/` — the in-browser clip editor UI.
+  `CaptionOverlay.tsx` is the live animated-caption preview, and
+  `panels/CaptionsPanel.tsx` is the caption style and animation controls.
 - `components/games/` — Chessboard, Snake, Game2048, and the GameHub tab
   switcher.
