@@ -187,5 +187,11 @@ sticking to direct upload only, before shipping this to the public.
 - `components/editor/` — the in-browser clip editor UI.
   `CaptionOverlay.tsx` is the live animated-caption preview, and
   `panels/CaptionsPanel.tsx` is the caption style and animation controls.
+- `components/landing/` — the home page: a dependency-free WebGL shader
+  backdrop (`ShaderBackdrop.tsx`), the 3D clip orbit (`Hero.tsx`), the
+  scroll-pinned "how it works" sequence (`ForgeSequence.tsx`), and a live
+  caption showcase driven by the real `CAPTION_PRESETS`
+  (`CaptionShowcase.tsx`). All looping motion respects
+  `prefers-reduced-motion`.
 - `components/games/` — Chessboard, Snake, Game2048, and the GameHub tab
   switcher.
