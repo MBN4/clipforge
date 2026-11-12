@@ -413,3 +413,55 @@ html {
 @font-face { font-family: "Luckiest Guy"; src: url("/fonts/LuckiestGuy-Regular.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
 @font-face { font-family: "Bangers"; src: url("/fonts/Bangers-Regular.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
 @font-face { font-family: "Permanent Marker"; src: url("/fonts/PermanentMarker-Regular.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+
+/* Page loader */
+.loader-glow {
+  background:
+    radial-gradient(circle at 50% 46%, rgba(255, 78, 31, 0.22), transparent 42%),
+    radial-gradient(circle at 50% 120%, rgba(255, 179, 122, 0.12), transparent 50%);
+  animation: loader-breathe 2.4s ease-in-out infinite;
+}
+@keyframes loader-breathe {
+  50% { opacity: 0.55; transform: scale(1.08); }
+}
+.loader-ring {
+  background: conic-gradient(from 0deg, transparent 0 55%, var(--ember) 85%, var(--moss) 100%);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1px));
+  animation: loader-spin 1.3s linear infinite;
+  filter: drop-shadow(0 0 8px rgba(255, 78, 31, 0.6));
+}
+.loader-ring-2 {
+  background: conic-gradient(from 180deg, transparent 0 70%, rgba(245, 239, 227, 0.7) 100%);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 1px), #000 calc(100% - 0.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 1px), #000 calc(100% - 0.5px));
+  animation: loader-spin 2.1s linear infinite reverse;
+}
+@keyframes loader-spin {
+  to { transform: rotate(360deg); }
+}
+.loader-bar {
+  background: linear-gradient(90deg, var(--ember), var(--ember-soft), var(--moss));
+  box-shadow: 0 0 12px rgba(255, 78, 31, 0.7);
+}
+/* film-strip sprocket holes drifting along the edges */
+.loader-strip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 14px;
+  opacity: 0.35;
+  background-image: linear-gradient(90deg, rgba(245, 239, 227, 0.5) 0 14px, transparent 14px 34px);
+  background-size: 34px 100%;
+  -webkit-mask: linear-gradient(90deg, transparent, #000 25%, #000 75%, transparent);
+  mask: linear-gradient(90deg, transparent, #000 25%, #000 75%, transparent);
+  animation: loader-strip 1.4s linear infinite;
+}
+.loader-strip-top { top: 22px; }
+.loader-strip-bottom { bottom: 22px; animation-direction: reverse; }
+@keyframes loader-strip {
+  to { background-position-x: 34px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loader-glow, .loader-ring, .loader-ring-2, .loader-strip { animation: none; }
+}
