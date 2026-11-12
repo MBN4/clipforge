@@ -83,6 +83,326 @@ body {
   animation: marquee 32s linear infinite;
 }
 
+/* ------------------------------------------------------------------ */
+/* Landing page                                                       */
+/* ------------------------------------------------------------------ */
+
+html {
+  scroll-behavior: smooth;
+}
+
+.animate-marquee-reverse {
+  animation: marquee 32s linear infinite reverse;
+}
+
+.text-outline {
+  color: transparent;
+  -webkit-text-stroke: 1.2px rgba(245, 239, 227, 0.4);
+}
+
+.pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* Gradient headline text with a slow sheen */
+.hero-gradient-text {
+  background: linear-gradient(100deg, var(--ember) 0%, var(--ember-soft) 30%, #fff3e0 45%, var(--ember-soft) 60%, var(--ember) 100%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: sheen 6s ease-in-out infinite;
+  padding-right: 0.06em;
+}
+.hero-gradient-text * {
+  color: transparent;
+}
+@keyframes sheen {
+  0%, 100% { background-position: 100% 0; }
+  50% { background-position: 0% 0; }
+}
+
+/* Primary CTA: ember pill with a rotating light border + glow */
+.cta-primary {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  padding: 0.9rem 1.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--ember);
+  box-shadow: 0 10px 40px -10px var(--ember), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  isolation: isolate;
+  transition: box-shadow 0.3s, filter 0.3s;
+}
+.cta-primary::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  padding: 2px;
+  background: conic-gradient(from var(--cta-angle, 0deg), transparent 0 70%, #fff 80%, transparent 90%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: cta-spin 3.2s linear infinite;
+  z-index: 1;
+}
+.cta-primary:hover {
+  box-shadow: 0 16px 60px -8px var(--ember), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  filter: brightness(1.08);
+}
+.cta-xl {
+  padding: 1.15rem 2.4rem;
+  font-size: 1rem;
+}
+@property --cta-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes cta-spin {
+  to { --cta-angle: 360deg; }
+}
+
+/* Hero: perspective grid floor */
+.hero-floor {
+  perspective: 600px;
+  overflow: hidden;
+  mask-image: linear-gradient(180deg, transparent, #000 40%);
+}
+.hero-floor::before {
+  content: "";
+  position: absolute;
+  left: -50%;
+  right: -50%;
+  top: 0;
+  height: 200%;
+  transform-origin: 50% 0;
+  transform: rotateX(72deg);
+  background-image:
+    linear-gradient(rgba(255, 78, 31, 0.35) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 78, 31, 0.35) 1px, transparent 1px);
+  background-size: 64px 64px;
+  animation: floor-move 3s linear infinite;
+}
+@keyframes floor-move {
+  to { background-position: 0 64px; }
+}
+
+/* Hero: 3D orbit of clips */
+.orbit-stage {
+  height: clamp(330px, 52vw, 560px);
+  perspective: 1500px;
+  --card-w: 104px;
+  --orbit-r: 210px;
+}
+@media (min-width: 640px) {
+  .orbit-stage { --card-w: 132px; --orbit-r: 330px; }
+}
+@media (min-width: 1024px) {
+  .orbit-stage { --card-w: 150px; --orbit-r: 450px; }
+}
+.orbit-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  transform-style: preserve-3d;
+  animation: orbit-spin 46s linear infinite;
+}
+@keyframes orbit-spin {
+  from { transform: rotateY(0deg); }
+  to { transform: rotateY(-360deg); }
+}
+.orbit-card {
+  position: absolute;
+  width: var(--card-w);
+  height: calc(var(--card-w) * 16 / 9);
+  left: calc(var(--card-w) / -2);
+  top: calc(var(--card-w) * -8 / 9);
+  transform-style: preserve-3d;
+}
+.orbit-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.orbit-back {
+  transform: rotateY(180deg);
+}
+.source-frame {
+  width: min(64vw, calc(var(--orbit-r) * 0.95));
+  transform: translate(-50%, -50%) translateZ(0);
+}
+.orbit-halo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(var(--orbit-r) * 2.3);
+  height: calc(var(--orbit-r) * 2.3);
+  margin-left: calc(var(--orbit-r) * -1.15);
+  margin-top: calc(var(--orbit-r) * -1.15);
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 78, 31, 0.35);
+  box-shadow: 0 0 60px rgba(255, 78, 31, 0.35), inset 0 0 60px rgba(255, 78, 31, 0.2);
+  transform: translateY(calc(var(--card-w) * 0.95)) rotateX(90deg);
+  pointer-events: none;
+}
+.orbit-progress {
+  animation: orbit-progress 7s linear infinite;
+}
+@keyframes orbit-progress {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+.cap-word {
+  animation: cap-lit 2.4s steps(1) infinite;
+}
+@keyframes cap-lit {
+  0% { color: var(--hl); transform: scale(1.12); }
+  33% { color: #fff; transform: scale(1); }
+}
+.playhead {
+  animation: playhead 9s linear infinite;
+}
+@keyframes playhead {
+  from { left: 0%; }
+  to { left: 100%; }
+}
+
+/* Forge sequence waveform */
+.wave-bar {
+  animation: wave 1.1s ease-in-out infinite alternate;
+  transform-origin: center;
+}
+@keyframes wave {
+  from { transform: scaleY(0.25); }
+  to { transform: scaleY(1); }
+}
+
+/* Tilt cards: moving specular glare */
+.tilt-glare {
+  background: radial-gradient(420px circle at var(--gx, 50%) var(--gy, 50%), rgba(255, 255, 255, 0.10), transparent 45%);
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+.tilt-card:hover .tilt-glare {
+  opacity: 1;
+}
+.bento-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(140deg, rgba(255, 78, 31, 0.6), transparent 35%, transparent 65%, rgba(205, 251, 94, 0.4));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.5s;
+  pointer-events: none;
+}
+.tilt-card:hover .bento-card::after {
+  opacity: 1;
+}
+
+/* Features: reframe loop 16:9 <-> 9:16 */
+.reframe-box {
+  animation: reframe 5s cubic-bezier(0.7, 0, 0.3, 1) infinite;
+}
+@keyframes reframe {
+  0%, 18% { width: min(320px, 92%); aspect-ratio: 16 / 9; }
+  45%, 72% { width: 112px; aspect-ratio: 9 / 16; }
+  100% { width: min(320px, 92%); aspect-ratio: 16 / 9; }
+}
+.trim-window {
+  animation: trim 6s ease-in-out infinite;
+}
+@keyframes trim {
+  0%, 100% { left: 18%; right: 30%; }
+  50% { left: 30%; right: 12%; }
+}
+.playhead-slow {
+  animation: playhead-slow 6s linear infinite;
+}
+@keyframes playhead-slow {
+  from { left: 20%; }
+  to { left: 80%; }
+}
+.knight-hop {
+  display: inline-block;
+  animation: knight 3s ease-in-out infinite;
+}
+@keyframes knight {
+  0%, 60%, 100% { transform: translate(0, 0); }
+  70% { transform: translate(0, -10px); }
+  80% { transform: translate(0, 0); }
+}
+
+/* CTA portal rings */
+.portal-ring {
+  border: 1px solid rgba(255, 78, 31, 0.5);
+  background: conic-gradient(from 0deg, transparent, rgba(255, 78, 31, 0.45), transparent 30%, rgba(205, 251, 94, 0.25), transparent 60%, rgba(255, 179, 122, 0.4), transparent);
+  -webkit-mask: radial-gradient(circle, transparent 66%, #000 67%);
+  mask: radial-gradient(circle, transparent 66%, #000 67%);
+  box-shadow: 0 0 80px rgba(255, 78, 31, 0.3);
+  animation: portal-spin 18s linear infinite;
+}
+.portal-ring-2 {
+  animation-duration: 12s;
+  animation-direction: reverse;
+  opacity: 0.8;
+}
+.portal-ring-3 {
+  animation-duration: 8s;
+  opacity: 0.7;
+}
+@keyframes portal-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Footer giant wordmark */
+.footer-wordmark {
+  font-size: clamp(4.5rem, 21vw, 19rem);
+  background: linear-gradient(180deg, rgba(245, 239, 227, 0.14), rgba(245, 239, 227, 0) 85%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  margin-bottom: -0.12em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .orbit-ring,
+  .hero-floor::before,
+  .cta-primary::before,
+  .portal-ring,
+  .reframe-box,
+  .trim-window,
+  .playhead,
+  .playhead-slow,
+  .knight-hop,
+  .wave-bar,
+  .cap-word,
+  .orbit-progress,
+  .hero-gradient-text,
+  .animate-marquee,
+  .animate-marquee-reverse,
+  .pulse-dot {
+    animation: none !important;
+  }
+}
+
 /* Caption fonts — the same files libass uses for the export (lib/captionFonts.ts).
    Declared with a full weight range so the browser never synthesizes bold,
    matching libass, which is told not to embolden these single-weight faces. */
@@ -93,3 +413,75 @@ body {
 @font-face { font-family: "Luckiest Guy"; src: url("/fonts/LuckiestGuy-Regular.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
 @font-face { font-family: "Bangers"; src: url("/fonts/Bangers-Regular.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
 @font-face { font-family: "Permanent Marker"; src: url("/fonts/PermanentMarker-Regular.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+
+/* Page loader */
+.loader-glow {
+  background:
+    radial-gradient(circle at 50% 46%, rgba(255, 78, 31, 0.22), transparent 42%),
+    radial-gradient(circle at 50% 120%, rgba(255, 179, 122, 0.12), transparent 50%);
+  animation: loader-breathe 2.4s ease-in-out infinite;
+}
+@keyframes loader-breathe {
+  50% { opacity: 0.55; transform: scale(1.08); }
+}
+.loader-ring {
+  background: conic-gradient(from 0deg, transparent 0 55%, var(--ember) 85%, var(--moss) 100%);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1px));
+  animation: loader-spin 1.3s linear infinite;
+  filter: drop-shadow(0 0 8px rgba(255, 78, 31, 0.6));
+}
+.loader-ring-2 {
+  background: conic-gradient(from 180deg, transparent 0 70%, rgba(245, 239, 227, 0.7) 100%);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 1px), #000 calc(100% - 0.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 1px), #000 calc(100% - 0.5px));
+  animation: loader-spin 2.1s linear infinite reverse;
+}
+@keyframes loader-spin {
+  to { transform: rotate(360deg); }
+}
+.loader-bar {
+  background: linear-gradient(90deg, var(--ember), var(--ember-soft), var(--moss));
+  box-shadow: 0 0 12px rgba(255, 78, 31, 0.7);
+}
+/* film-strip sprocket holes drifting along the edges */
+.loader-strip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 14px;
+  opacity: 0.35;
+  background-image: linear-gradient(90deg, rgba(245, 239, 227, 0.5) 0 14px, transparent 14px 34px);
+  background-size: 34px 100%;
+  -webkit-mask: linear-gradient(90deg, transparent, #000 25%, #000 75%, transparent);
+  mask: linear-gradient(90deg, transparent, #000 25%, #000 75%, transparent);
+  animation: loader-strip 1.4s linear infinite;
+}
+.loader-strip-top { top: 22px; }
+.loader-strip-bottom { bottom: 22px; animation-direction: reverse; }
+@keyframes loader-strip {
+  to { background-position-x: 34px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loader-glow, .loader-ring, .loader-ring-2, .loader-strip { animation: none; }
+}
+
+/* Site font picked in the caption showcase (lib/siteFont.ts). Overrides the font
+   variables everything is built on; caption previews and the editor name their
+   fonts explicitly, so they keep rendering exactly like the export. Single-weight
+   faces are declared with a full weight range above, so nothing gets faux-bolded. */
+body {
+  transition: opacity 0.4s ease;
+}
+/* set by setSiteFont(): the page fades out, the font swaps while it is invisible
+   (so the reflow is never seen), then fades back in */
+html.font-swap body {
+  opacity: 0;
+  transition-duration: 0.22s;
+}
+html[data-site-font] {
+  --font-bricolage: var(--site-font);
+  --font-inter: var(--site-font);
+  --font-mono-custom: var(--site-font);
+  font-synthesis: none;
+}

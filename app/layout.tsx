@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, Inter, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
+import { PageLoader } from "@/components/PageLoader";
+import { SITE_FONT_BOOT_SCRIPT } from "@/lib/siteFont";
 
 const bricolage = Bricolage_Grotesque({
   variable: "--font-bricolage",
@@ -31,8 +33,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="en"
       className={`${bricolage.variable} ${inter.variable} ${plexMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
+      <head>
+        {/* re-apply the visitor's chosen site font before first paint */}
+        <script dangerouslySetInnerHTML={{ __html: SITE_FONT_BOOT_SCRIPT }} />
+      </head>
       <body className="min-h-full flex flex-col bg-ink text-paper">
+        <PageLoader />
         <div className="grain" />
         {children}
       </body>
