@@ -48,11 +48,13 @@ function apply(family: string) {
 let token = 0;
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+type VTDoc = Document & { startViewTransition?: (cb: () => void | Promise<void>) => { finished: Promise<void> } };
+
 /**
  * Set (or, with "", clear) the site font and remember it on this device.
- * The swap is hidden behind a quick fade, the font is fully loaded first, and
- * `anchor` (e.g. the section the user is looking at) is held in place so the
- * reflow can't shove the page around under them.
+ * The new font is loaded first, then the old page cross-fades into the new one
+ * with a View Transition (never going blank), and `anchor` (the section the
+ * user is looking at) is held in place so the reflow can't shove the page around.
  */
 export async function setSiteFont(family: string, anchor?: Element | null) {
   const next = isSiteFont(family) ? family : "";
@@ -63,30 +65,38 @@ export async function setSiteFont(family: string, anchor?: Element | null) {
   if (next === readSiteFont()) return;
 
   const mine = ++token;
-  const html = document.documentElement;
-  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
   if (next) {
     try {
       await Promise.race([document.fonts.load(`1em "${next}"`), sleep(1200)]);
     } catch {}
     if (mine !== token) return;
   }
-  if (!reduce) {
+
+  const swap = async () => {
+    const before = anchor?.getBoundingClientRect().top;
+    apply(next);
+    if (anchor && before !== undefined) {
+      const delta = anchor.getBoundingClientRect().top - before;
+      if (Math.abs(delta) > 0.5) window.scrollTo({ top: window.scrollY + delta, behavior: "instant" });
+    }
+    window.dispatchEvent(new Event(EVT));
+    await sleep(30); // let React paint the new state before the "after" snapshot is taken
+  };
+
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const doc = document as VTDoc;
+  if (!reduce && doc.startViewTransition) {
+    await doc.startViewTransition(swap).finished.catch(() => {});
+  } else if (!reduce) {
+    // no View Transitions: a gentle dip instead of a blank page
+    const html = document.documentElement;
     html.classList.add("font-swap");
-    await sleep(230);
-    if (mine !== token) return; // a newer pick took over and will finish the fade
+    await sleep(200);
+    await swap();
+    requestAnimationFrame(() => requestAnimationFrame(() => html.classList.remove("font-swap")));
+  } else {
+    await swap();
   }
-
-  const before = anchor?.getBoundingClientRect().top;
-  apply(next);
-  if (anchor && before !== undefined) {
-    const delta = anchor.getBoundingClientRect().top - before;
-    if (Math.abs(delta) > 0.5) window.scrollTo({ top: window.scrollY + delta, behavior: "instant" });
-  }
-  window.dispatchEvent(new Event(EVT));
-
-  if (!reduce) requestAnimationFrame(() => requestAnimationFrame(() => html.classList.remove("font-swap")));
 }
 
 export function subscribeSiteFont(cb: () => void) {

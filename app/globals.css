@@ -470,15 +470,24 @@ html {
    variables everything is built on; caption previews and the editor name their
    fonts explicitly, so they keep rendering exactly like the export. Single-weight
    faces are declared with a full weight range above, so nothing gets faux-bolded. */
-body {
-  transition: opacity 0.4s ease;
+/* Font swap (setSiteFont): a soft blur-dissolve between the old and new page. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.55s;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  mix-blend-mode: normal;
 }
-/* set by setSiteFont(): the page fades out, the font swaps while it is invisible
-   (so the reflow is never seen), then fades back in */
-html.font-swap body {
-  opacity: 0;
-  transition-duration: 0.22s;
+::view-transition-old(root) { animation-name: font-swap-out; }
+::view-transition-new(root) { animation-name: font-swap-in; }
+@keyframes font-swap-out {
+  to { opacity: 0; filter: blur(6px); }
 }
+@keyframes font-swap-in {
+  from { opacity: 0; filter: blur(6px); }
+}
+/* fallback for browsers without View Transitions */
+body { transition: opacity 0.35s ease; }
+html.font-swap body { opacity: 0.4; transition-duration: 0.2s; }
 html[data-site-font] {
   --font-bricolage: var(--site-font);
   --font-inter: var(--site-font);
