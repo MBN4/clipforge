@@ -465,3 +465,23 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .loader-glow, .loader-ring, .loader-ring-2, .loader-strip { animation: none; }
 }
+
+/* Site font picked in the caption showcase (lib/siteFont.ts). Overrides the font
+   variables everything is built on; caption previews and the editor name their
+   fonts explicitly, so they keep rendering exactly like the export. Single-weight
+   faces are declared with a full weight range above, so nothing gets faux-bolded. */
+body {
+  transition: opacity 0.4s ease;
+}
+/* set by setSiteFont(): the page fades out, the font swaps while it is invisible
+   (so the reflow is never seen), then fades back in */
+html.font-swap body {
+  opacity: 0;
+  transition-duration: 0.22s;
+}
+html[data-site-font] {
+  --font-bricolage: var(--site-font);
+  --font-inter: var(--site-font);
+  --font-mono-custom: var(--site-font);
+  font-synthesis: none;
+}

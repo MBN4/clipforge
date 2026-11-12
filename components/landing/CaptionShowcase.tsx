@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
+import { Check } from "lucide-react";
 import { AnimatePresence, motion, useInView, useReducedMotion } from "framer-motion";
 import { CAPTION_PRESETS, DEFAULT_CAPTION_STYLE, type CaptionStyle } from "@/lib/captions";
 import { captionFontCss, getCaptionFont } from "@/lib/captionFonts";
+import { DEFAULT_SITE_FONT_LABEL, readSiteFont, setSiteFont, subscribeSiteFont } from "@/lib/siteFont";
 import { Scene } from "./Scene";
 import { Eyebrow, RevealWords, TiltCard } from "./primitives";
 
@@ -112,6 +114,7 @@ export function CaptionShowcase() {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { margin: "-20%" });
   const reduce = useReducedMotion();
+  const siteFont = useSyncExternalStore(subscribeSiteFont, readSiteFont, () => "");
 
   useEffect(() => {
     if (!inView) return;
@@ -217,6 +220,7 @@ export function CaptionShowcase() {
                   onClick={() => {
                     userPicked.current = true;
                     setPresetIdx(i);
+                    setSiteFont(p.style.fontFamily, ref.current);
                   }}
                   className={`group relative overflow-hidden rounded-2xl border px-3 py-3.5 text-left transition-all duration-300 ${
                     on
@@ -236,11 +240,35 @@ export function CaptionShowcase() {
                     Aa
                   </span>
                   <span className="mt-2 block font-mono text-[10px] uppercase tracking-widest text-paper-dim">{p.name}</span>
+                  {siteFont === p.style.fontFamily && (
+                    <Check className="absolute bottom-2.5 right-2.5 h-3.5 w-3.5 text-moss" aria-label="Current site font" />
+                  )}
                   {on && <motion.span layoutId="preset-dot" className="absolute right-2.5 top-2.5 h-1.5 w-1.5 rounded-full bg-ember" />}
                 </button>
               );
             })}
           </div>
+
+          <div className="mt-4 flex items-center justify-between gap-4 rounded-2xl border border-line-strong bg-white/[0.03] px-4 py-3">
+            <div className="min-w-0">
+              <span className="font-mono text-[10px] uppercase tracking-widest text-paper-dim">Current site font</span>
+              <div className="mt-1 truncate text-lg text-paper">{siteFont || DEFAULT_SITE_FONT_LABEL}</div>
+            </div>
+            {siteFont ? (
+              <button
+                type="button"
+                onClick={() => setSiteFont("", ref.current)}
+                className="shrink-0 rounded-full border border-white/15 px-3.5 py-1.5 font-mono text-[10px] uppercase tracking-widest text-paper-dim transition hover:border-white/35 hover:text-paper"
+              >
+                Reset
+              </button>
+            ) : (
+              <span className="shrink-0 font-mono text-[10px] uppercase tracking-widest text-paper-dim/60">Default</span>
+            )}
+          </div>
+          <p className="mt-2.5 text-xs text-paper-dim/70">
+            Click a style to switch the whole site to its font. It&apos;s remembered on this device until you change it.
+          </p>
 
           <dl className="mt-8 grid grid-cols-3 gap-4 border-t border-line pt-6 font-mono text-[11px] uppercase tracking-widest">
             <div>

@@ -4,9 +4,12 @@ import { useRef } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import { MagneticLink, RevealWords } from "./primitives";
+import { WebCanvas, WebToggle, useWebSlinger } from "./WebSlinger";
 
 export function CTA() {
   const ref = useRef<HTMLElement>(null);
+  const btnRef = useRef<HTMLDivElement>(null);
+  const web = useWebSlinger(ref, btnRef);
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end end"] });
   const ringTilt = useTransform(scrollYProgress, [0, 1], [82, 66]);
   const ringScale = useTransform(scrollYProgress, [0, 1], [0.6, 1]);
@@ -42,7 +45,7 @@ export function CTA() {
         <p className="mt-7 max-w-md text-paper-dim">
           No account walls, no card on file. Paste a link and watch it turn into something worth posting.
         </p>
-        <div className="mt-10">
+        <div ref={btnRef} className="mt-10">
           <MagneticLink href="/studio" className="cta-primary cta-xl group">
             <span className="relative z-10 inline-flex items-center gap-2.5">
               Open the studio
@@ -50,7 +53,9 @@ export function CTA() {
             </span>
           </MagneticLink>
         </div>
+        {web.supported && <WebToggle on={web.on} setOn={web.setOn} />}
       </div>
+      <WebCanvas canvasRef={web.canvasRef} />
     </section>
   );
 }
