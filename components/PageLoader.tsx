@@ -7,6 +7,8 @@ import { AnimatePresence, animate, motion, useMotionValue, useReducedMotion, use
 const BOOT_MS = 1500; // first load / refresh
 const NAV_MS = 650; // client-side page changes
 const NAV_FALLBACK_MS = 5000; // never leave the curtain down if a navigation stalls
+// moving between studio dashboard tabs is an in-app view switch, not a page load
+const inStudio = (p: string) => /^\/studio(\/|$)/.test(p);
 
 function Counter({ duration }: { duration: number }) {
   const mv = useMotionValue(0);
@@ -101,6 +103,7 @@ export function PageLoader() {
   const [boot, setBoot] = useState(true);
   const [run, setRun] = useState(0);
   const first = useRef(true);
+  const prevPath = useRef(pathname);
   const hideTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const stallTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -137,6 +140,7 @@ export function PageLoader() {
       if (!a || !a.href || (a.target && a.target !== "_self") || a.hasAttribute("download")) return;
       const url = new URL(a.href, location.href);
       if (url.origin !== location.origin || url.pathname === location.pathname) return;
+      if (inStudio(url.pathname) && inStudio(location.pathname)) return;
       clearTimeout(hideTimer.current);
       setBoot(false);
       setRun((n) => n + 1);
@@ -150,10 +154,13 @@ export function PageLoader() {
 
   // the route actually changed (also covers back/forward) → hold briefly, then lift
   useEffect(() => {
+    const from = prevPath.current;
+    prevPath.current = pathname;
     if (first.current) {
       first.current = false;
       return;
     }
+    if (inStudio(from) && inStudio(pathname)) return;
     clearTimeout(stallTimer.current);
     clearTimeout(hideTimer.current);
     setBoot(false);

@@ -1,8 +1,10 @@
 import { spawn } from "node:child_process";
+import { trackChild } from "./scheduler";
 
 export function run(cmd: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"], detached: true });
+    trackChild(child);
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (d) => (stdout += d.toString()));
@@ -64,4 +66,9 @@ export async function trimSource(sourcePath: string, start: number, end: number,
     "make_zero",
     outPath,
   ]);
+}
+
+/** Grab one frame of the source as a small JPEG, used as the video's dashboard thumbnail. */
+export async function extractThumb(sourcePath: string, outPath: string, at: number) {
+  await ffmpeg(["-ss", String(Math.max(0, at)), "-i", sourcePath, "-frames:v", "1", "-vf", "scale=480:-2", "-q:v", "4", outPath]);
 }

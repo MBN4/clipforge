@@ -67,6 +67,27 @@ npm start
    track. Everything previews live in the browser; **Export** renders the
    final file in a single `ffmpeg` pass combining every edit.
 
+### Studio dashboard & multi-video scheduling
+
+`/studio` is a dashboard with tabs — **Overview**, **New project**, **Queue**,
+**Library** and **Activity**. Add many videos at once (paste a list of links,
+drop several files), set each one's clip count or time section, and watch them
+all process in parallel with live stage, progress, elapsed time and ETA. Every
+video can be cancelled, retried or deleted; clips from all videos live in one
+searchable library; and Activity tracks each run's speed (seconds of video
+processed per second of work) and where the time went by stage.
+
+Running many videos at once must not slow each one down, so all jobs share a
+scheduler (`lib/scheduler.ts`) instead of each starting flat-out. Stages borrow
+slots from shared pools: downloads run on their own lane (3 at a time), and
+CPU work — whisper takes the whole machine, each clip render a third of it —
+shares one pool sized from the core count. Earliest-submitted job is served
+first, so a video on its own runs exactly as fast as it always did, extra
+videos wait their turn rather than thrashing the CPU, and one video can
+download while another transcribes or renders. Tunable with
+`CLIPFORGE_RENDER_SLOTS` and `CLIPFORGE_DOWNLOAD_SLOTS`. Jobs interrupted by a
+server restart are marked as such and can be retried.
+
 Jobs are tracked in-memory with an async-persisted `storage/db.json` snapshot
 (single instance — swap for a real DB/queue if you deploy this for more than a
 few concurrent users). Output files, raw per-clip segments (the editor's
@@ -147,7 +168,8 @@ sticking to direct upload only, before shipping this to the public.
 ## Known limitations
 
 - Single-process job queue (in-memory + async file snapshot) — fine for a side
-  project, not for scale, and not durable across a process crash mid-job.
+  project, not for scale. A crash or restart mid-job marks it "Interrupted"
+  (retry re-runs it from the start).
 - No auth/accounts — anyone with the URL can see a job's clips while the dev
   server runs. Add auth before deploying multi-tenant.
 - Whisper model download requires one-time network access to huggingface.co.

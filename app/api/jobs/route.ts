@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 import fs from "node:fs";
 import path from "node:path";
+import { Readable } from "node:stream";
+import { pipeline as pipe } from "node:stream/promises";
 import { createJob, listJobs } from "@/lib/store";
+import { systemSnapshot } from "@/lib/scheduler";
+import { toClientJob } from "@/lib/serialize";
 import { ensureDir, jobDir } from "@/lib/paths";
 import { detectPlatform } from "@/lib/download";
 import { runPipeline } from "@/lib/pipeline";
@@ -16,8 +20,14 @@ function parseRange(rawStart: unknown, rawEnd: unknown): TimeRange | undefined {
   return { start: Math.max(0, start), end };
 }
 
+const str = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : undefined);
+const num = (v: unknown) => {
+  const n = typeof v === "string" ? parseFloat(v) : typeof v === "number" ? v : NaN;
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+};
+
 export async function GET() {
-  return NextResponse.json({ jobs: listJobs() });
+  return NextResponse.json({ jobs: listJobs().map((j) => toClientJob(j)), system: systemSnapshot() });
 }
 
 export async function POST(req: NextRequest) {
@@ -31,6 +41,9 @@ export async function POST(req: NextRequest) {
   let source: Job["source"];
   let clipCount: number | undefined;
   let range: TimeRange | undefined;
+  let title: string | undefined;
+  let thumbnail: string | undefined;
+  let duration: number | undefined;
 
   if (contentType.includes("multipart/form-data")) {
     const form = await req.formData();
@@ -40,9 +53,10 @@ export async function POST(req: NextRequest) {
     }
     const ext = path.extname(file.name) || ".mp4";
     uploadedPath = path.join(dir, `source${ext}`);
-    const buffer = Buffer.from(await file.arrayBuffer());
-    fs.writeFileSync(uploadedPath, buffer);
+    await pipe(Readable.fromWeb(file.stream() as never), fs.createWriteStream(uploadedPath));
     source = { type: "upload", filename: file.name };
+    title = str(form.get("title"), 200) ?? file.name;
+    duration = num(form.get("duration"));
     const rawCount = form.get("clipCount");
     if (typeof rawCount === "string") clipCount = parseInt(rawCount, 10);
     range = parseRange(form.get("rangeStart"), form.get("rangeEnd"));
@@ -56,6 +70,9 @@ export async function POST(req: NextRequest) {
     source = { type: "url", url, platform: detectPlatform(url) };
     if (typeof body.clipCount === "number") clipCount = body.clipCount;
     range = parseRange(body.rangeStart, body.rangeEnd);
+    title = str(body.title, 200);
+    thumbnail = str(body.thumbnail, 1000);
+    duration = num(body.duration);
   }
 
   const job: Job = {
@@ -63,6 +80,10 @@ export async function POST(req: NextRequest) {
     createdAt: Date.now(),
     updatedAt: Date.now(),
     source,
+    title,
+    thumbnail,
+    sourceDuration: duration,
+    request: { clipCount, range },
     stage: "queued",
     progress: 2,
     message: "Queued…",

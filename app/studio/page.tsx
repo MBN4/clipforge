@@ -1,289 +1,163 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Logo } from "@/components/Logo";
-import { SourceInput } from "@/components/studio/SourceInput";
-import { ClipCountStep } from "@/components/studio/ClipCountStep";
-import { ProgressView } from "@/components/studio/ProgressView";
-import { ProcessingAmbience } from "@/components/studio/ProcessingAmbience";
-import { TipTicker } from "@/components/studio/TipTicker";
-import { ClipCard } from "@/components/studio/ClipCard";
-import { GameHub } from "@/components/games/GameHub";
-import { SoundToggle } from "@/components/SoundToggle";
-import { ToastStack, type ToastData } from "@/components/Toast";
-import { sfx } from "@/lib/sound";
-import { requestNotificationPermission, notifyJobDone } from "@/lib/notify";
-import { nanoid } from "nanoid";
-import type { Job } from "@/lib/types";
+import { ArrowRight, Clapperboard, Film, Gauge, Layers, Plus, Sparkles, Zap } from "lucide-react";
+import { useDashboard } from "@/components/studio/DashboardProvider";
+import { JobRow } from "@/components/studio/JobCard";
+import { Card, EmptyState, PageHeader, StatTile, StatusPill, Thumb, useNow } from "@/components/studio/ui";
+import { fmtAgo, fmtDur, fmtSpeed, isActive, jobTitle, totalsOf } from "@/lib/dashboard";
 
-type JobWithUrls = Omit<Job, "clips"> & { clips: (Job["clips"][number] & { videoUrl: string; thumbUrl: string })[] };
-
-type PendingSource = { type: "url"; url: string } | { type: "upload"; file: File };
-
-type Step = "input" | "probing" | "configuring" | "processing" | "done" | "error";
-
-interface SourceInfo {
-  duration: number;
-  title: string;
-  thumbnail?: string;
+function Skeleton() {
+  return (
+    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      {[0, 1, 2, 3].map((i) => (
+        <div key={i} className="h-32 animate-pulse rounded-2xl border border-line bg-ink-2/60" />
+      ))}
+    </div>
+  );
 }
 
-function readFileDuration(file: File): Promise<number> {
-  return new Promise((resolve) => {
-    const video = document.createElement("video");
-    video.preload = "metadata";
-    video.src = URL.createObjectURL(file);
-    video.onloadedmetadata = () => {
-      resolve(video.duration || 0);
-      URL.revokeObjectURL(video.src);
-    };
-    video.onerror = () => resolve(0);
-  });
-}
+export default function OverviewPage() {
+  const { jobs, system, loaded } = useDashboard();
+  const active = jobs.filter(isActive);
+  const now = useNow(active.length > 0);
+  const t = totalsOf(jobs, now);
 
-export default function StudioPage() {
-  const [step, setStep] = useState<Step>("input");
-  const [pending, setPending] = useState<PendingSource | null>(null);
-  const [sourceInfo, setSourceInfo] = useState<SourceInfo | null>(null);
-  const [job, setJob] = useState<JobWithUrls | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [toasts, setToasts] = useState<ToastData[]>([]);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  function pushToast(title: string, body?: string) {
-    const id = nanoid(6);
-    setToasts((t) => [...t, { id, title, body }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 6000);
-  }
-
-  useEffect(() => {
-    requestNotificationPermission();
-  }, []);
-
-  const poll = useCallback((id: string) => {
-    if (pollRef.current) clearInterval(pollRef.current);
-    pollRef.current = setInterval(async () => {
-      const res = await fetch(`/api/jobs/${id}`);
-      if (!res.ok) return;
-      const data = await res.json();
-      setJob(data.job);
-      if (data.job.stage === "done" || data.job.stage === "error") {
-        if (pollRef.current) clearInterval(pollRef.current);
-        setStep(data.job.stage);
-        if (data.job.stage === "done") {
-          sfx.jobDone();
-          const count = data.job.clips.length;
-          pushToast("Your clips are ready", `${count} ${count === 1 ? "clip" : "clips"} finished rendering`);
-          notifyJobDone("Clipforge", `${count} ${count === 1 ? "clip" : "clips"} ready to post`);
-        } else {
-          pushToast("That one didn't work", data.job.error);
-          notifyJobDone("Clipforge", "Something went wrong with your clip");
-        }
-      }
-    }, 1500);
-  }, []);
-
-  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
-
-  async function handleUrl(url: string) {
-    setError(null);
-    setPending({ type: "url", url });
-    setStep("probing");
-    try {
-      const res = await fetch("/api/probe", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ url }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Couldn't read that video");
-      setSourceInfo({ duration: data.duration, title: data.title, thumbnail: data.thumbnail });
-      setStep("configuring");
-    } catch (e: any) {
-      setError(e.message);
-      setStep("input");
-    }
-  }
-
-  async function handleFile(file: File) {
-    setError(null);
-    setPending({ type: "upload", file });
-    setStep("probing");
-    const duration = await readFileDuration(file);
-    setSourceInfo({ duration, title: file.name });
-    setStep("configuring");
-  }
-
-  async function confirmClipCount(count: number, range?: { start: number; end: number }) {
-    if (!pending) return;
-    setError(null);
-    try {
-      let res: Response;
-      if (pending.type === "url") {
-        res = await fetch("/api/jobs", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            url: pending.url,
-            clipCount: count,
-            rangeStart: range?.start,
-            rangeEnd: range?.end,
-          }),
-        });
-      } else {
-        const form = new FormData();
-        form.append("file", pending.file);
-        form.append("clipCount", String(count));
-        if (range) {
-          form.append("rangeStart", String(range.start));
-          form.append("rangeEnd", String(range.end));
-        }
-        res = await fetch("/api/jobs", { method: "POST", body: form });
-      }
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to start");
-      setJob({ id: data.id, stage: "queued", progress: 0, message: "Queued…", clips: [] } as unknown as JobWithUrls);
-      setStep("processing");
-      poll(data.id);
-    } catch (e: any) {
-      setError(e.message);
-      setStep("input");
-    }
-  }
-
-  function reset() {
-    setJob(null);
-    setError(null);
-    setPending(null);
-    setSourceInfo(null);
-    setStep("input");
-    if (pollRef.current) clearInterval(pollRef.current);
-  }
+  const recentClips = jobs
+    .filter((j) => j.stage === "done")
+    .sort((a, b) => (b.finishedAt ?? 0) - (a.finishedAt ?? 0))
+    .flatMap((j) => j.clips.map((c) => ({ clip: c, job: j })))
+    .slice(0, 10);
+  const recentVideos = jobs.slice(0, 5);
+  const compute = system ? Math.round((system.compute.used / system.compute.capacity) * 100) : 0;
 
   return (
     <>
-      {step === "processing" && <ProcessingAmbience />}
-      <ToastStack toasts={toasts} onDismiss={(id) => setToasts((t) => t.filter((x) => x.id !== id))} />
+      <PageHeader title="Overview" subtitle="Everything you're clipping, in one place.">
+        <Link href="/studio/new" className="inline-flex items-center gap-2 rounded-full bg-ember px-5 py-2.5 text-sm font-semibold text-ink shadow-[0_10px_40px_-12px_var(--ember)] transition hover:brightness-110">
+          <Plus className="h-4 w-4" /> New project
+        </Link>
+      </PageHeader>
 
-      <header className="border-b border-line px-6 py-4">
-        <div className="mx-auto flex max-w-6xl items-center justify-between">
-          <Link href="/">
-            <Logo />
+      {!loaded ? (
+        <Skeleton />
+      ) : jobs.length === 0 ? (
+        <EmptyState icon={Sparkles} title="Your studio is empty" body="Add one video or twenty — Clipforge clips them all in parallel and keeps every one tracked here.">
+          <Link href="/studio/new" className="inline-flex items-center gap-2 rounded-full bg-ember px-6 py-3 text-sm font-semibold text-ink transition hover:brightness-110">
+            Start your first batch <ArrowRight className="h-4 w-4" />
           </Link>
-          <div className="flex items-center gap-3">
-            <SoundToggle />
-            {step !== "input" && (
-              <button
-                onClick={reset}
-                className="rounded-full border border-line-strong px-4 py-1.5 text-xs font-semibold text-paper-dim transition hover:text-paper"
-              >
-                New clip
-              </button>
-            )}
-          </div>
-        </div>
-      </header>
-
-      <main className="flex-1 px-6 py-16">
-        {step === "input" && (
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mx-auto max-w-2xl text-center"
-          >
-            <h1 className="font-display text-3xl font-semibold tracking-tight md:text-4xl">
-              Turn a video into clips.
-            </h1>
-            <p className="mt-3 text-paper-dim">
-              YouTube, Instagram, TikTok, Facebook, or your own file.
-            </p>
-            <div className="mt-10">
-              <SourceInput onSubmitUrl={handleUrl} onSubmitFile={handleFile} />
-            </div>
-            {error && <p className="mt-4 text-sm text-ember">{error}</p>}
+        </EmptyState>
+      ) : (
+        <div className="space-y-8">
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <StatTile label="Videos" icon={Film} value={t.videos} sub={`${t.done} finished${t.failed ? ` · ${t.failed} failed` : ""}`} />
+            <StatTile label="Clips created" icon={Clapperboard} value={t.clips} sub={t.footageSec ? `from ${fmtDur(t.footageSec)} of footage` : "none yet"} />
+            <StatTile label="In progress" icon={Layers} value={t.active} accent={t.active > 0} sub={t.active ? `${t.waiting} waiting in line` : "all caught up"} />
+            <StatTile label="Avg speed" icon={Zap} value={fmtSpeed(t.avgSpeed)} sub={t.bestSpeed ? `realtime · best ${fmtSpeed(t.bestSpeed)}` : "realtime — after your first video"} />
           </motion.div>
-        )}
 
-        {step === "probing" && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mx-auto flex min-h-[30vh] max-w-lg flex-col items-center justify-center gap-3"
-          >
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-line-strong border-t-ember" />
-            <p className="font-mono text-sm text-paper-dim">Reading the video…</p>
-          </motion.div>
-        )}
-
-        {step === "configuring" && sourceInfo && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mx-auto flex min-h-[40vh] max-w-lg flex-col justify-center"
-          >
-            <ClipCountStep
-              title={sourceInfo.title}
-              duration={sourceInfo.duration}
-              thumbnail={sourceInfo.thumbnail}
-              onConfirm={confirmClipCount}
-              onCancel={reset}
-            />
-            {error && <p className="mt-4 text-center text-sm text-ember">{error}</p>}
-          </motion.div>
-        )}
-
-        {step === "processing" && job && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mx-auto flex max-w-2xl flex-col justify-center gap-12 py-8"
-          >
-            <ProgressView stage={job.stage} progress={job.progress} message={job.message} />
-            <TipTicker />
-            <GameHub />
-          </motion.div>
-        )}
-
-        {step === "error" && job && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mx-auto max-w-lg text-center"
-          >
-            <p className="font-display text-xl font-semibold text-paper">That one didn't work</p>
-            <p className="mt-2 text-sm text-paper-dim">{job.error}</p>
-            <button
-              onClick={reset}
-              className="mt-6 rounded-full bg-ember px-6 py-3 text-sm font-semibold text-ink"
-            >
-              Try again
-            </button>
-          </motion.div>
-        )}
-
-        {step === "done" && job && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mx-auto max-w-6xl">
-            <div className="mb-8 flex flex-col gap-1 text-center">
-              <h2 className="font-display text-2xl font-semibold tracking-tight">
-                {job.clips.length} {job.clips.length === 1 ? "clip" : "clips"}, ready to post
-              </h2>
-              {job.transcriptMethod === "heuristic" && (
-                <p className="text-xs text-paper-dim">
-                  Captions were skipped for this video — speech-to-text wasn't available, so clips
-                  were picked by pacing instead.
-                </p>
+          <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+            <Card className="p-5">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="font-display text-base font-semibold text-paper">Live activity</h2>
+                <Link href="/studio/queue" className="inline-flex items-center gap-1 text-xs text-paper-dim transition hover:text-paper">
+                  Open queue <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+              {active.length === 0 ? (
+                <p className="py-10 text-center text-sm text-paper-dim">Nothing processing right now.</p>
+              ) : (
+                <div className="space-y-1">
+                  {active
+                    .sort((a, b) => a.createdAt - b.createdAt)
+                    .slice(0, 4)
+                    .map((j) => (
+                      <JobRow key={j.id} job={j} />
+                    ))}
+                  {active.length > 4 && <p className="px-2 pt-2 text-xs text-paper-dim">+ {active.length - 4} more in the queue</p>}
+                </div>
               )}
+            </Card>
+
+            <Card className="p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="font-display text-base font-semibold text-paper">Throughput</h2>
+                <Gauge className="h-4 w-4 text-paper-dim" strokeWidth={1.75} />
+              </div>
+              <dl className="space-y-3.5 text-sm">
+                {[
+                  ["Compute load", system ? `${compute}%` : "—"],
+                  ["Cores", system ? String(system.cpus) : "—"],
+                  ["Downloads", system ? `${system.downloads.active} / ${system.downloads.limit}` : "—"],
+                  ["Avg time per video", t.avgWorkSec ? fmtDur(t.avgWorkSec) : "—"],
+                  ["Clips per minute", t.clipsPerMin ? t.clipsPerMin.toFixed(1) : "—"],
+                ].map(([k, v]) => (
+                  <div key={k} className="flex items-center justify-between border-b border-line/70 pb-3 last:border-0 last:pb-0">
+                    <dt className="text-paper-dim">{k}</dt>
+                    <dd className="font-mono tabular-nums text-paper">{v}</dd>
+                  </div>
+                ))}
+              </dl>
+            </Card>
+          </div>
+
+          {recentClips.length > 0 && (
+            <section>
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="font-display text-lg font-semibold text-paper">Latest clips</h2>
+                <Link href="/studio/library" className="inline-flex items-center gap-1 text-xs text-paper-dim transition hover:text-paper">
+                  View library <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+              <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0">
+                {recentClips.map(({ clip, job }) => (
+                  <Link
+                    key={clip.id}
+                    href={`/editor/${job.id}/${clip.index}`}
+                    className="group relative aspect-[9/16] w-32 shrink-0 overflow-hidden rounded-xl border border-line-strong bg-ink-3 transition hover:border-ember sm:w-36"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={clip.thumbUrl} alt="" loading="lazy" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent p-2.5 pt-8">
+                      <p className="line-clamp-2 text-[11px] font-medium leading-snug text-paper">{clip.title}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <section>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="font-display text-lg font-semibold text-paper">Recent videos</h2>
+              <Link href="/studio/activity" className="inline-flex items-center gap-1 text-xs text-paper-dim transition hover:text-paper">
+                All activity <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
             </div>
-            <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
-              {job.clips.map((c, i) => (
-                <ClipCard key={c.id} clip={c} index={i} jobId={job.id} />
+            <Card className="divide-y divide-line/70">
+              {recentVideos.map((j) => (
+                <div key={j.id} className="flex items-center gap-4 p-3 sm:p-4">
+                  <Thumb job={j} className="h-12 w-20" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-paper">{jobTitle(j)}</p>
+                    <p className="mt-0.5 font-mono text-[10px] uppercase tracking-wider text-paper-dim">
+                      {fmtAgo(j.createdAt, now)}
+                      {j.stage === "done" ? ` · ${j.clips.length} clips` : ""}
+                    </p>
+                  </div>
+                  <StatusPill job={j} />
+                  {j.stage === "done" && (
+                    <Link href={`/studio/library?job=${j.id}`} className="hidden rounded-lg border border-line-strong px-3 py-1.5 text-xs font-semibold text-paper-dim transition hover:border-ember hover:text-ember sm:block">
+                      View clips
+                    </Link>
+                  )}
+                </div>
               ))}
-            </div>
-          </motion.div>
-        )}
-      </main>
+            </Card>
+          </section>
+        </div>
+      )}
     </>
   );
 }
