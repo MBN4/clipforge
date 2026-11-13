@@ -1,17 +1,77 @@
 import { spawn } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 import { trackChild } from "./scheduler";
 
-export function run(cmd: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
+export interface RunOptions {
+  /** called for every line of stdout (e.g. to parse yt-dlp's progress output) */
+  onLine?: (line: string) => void;
+  /** kill the process if the total size of files in `dir` stops growing for `ms` — catches silently hung downloads */
+  stall?: { dir: string; ms: number };
+}
+
+function dirBytes(dir: string): number {
+  try {
+    let total = 0;
+    for (const f of fs.readdirSync(dir)) {
+      try {
+        total += fs.statSync(path.join(dir, f)).size;
+      } catch {}
+    }
+    return total;
+  } catch {
+    return 0;
+  }
+}
+
+export function run(cmd: string, args: string[], opts: RunOptions = {}): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"], detached: true });
     trackChild(child);
     let stdout = "";
     let stderr = "";
-    child.stdout.on("data", (d) => (stdout += d.toString()));
+    let pendingLine = "";
+    let stalled = false;
+    child.stdout.on("data", (d) => {
+      const text = d.toString();
+      stdout += text;
+      if (opts.onLine) {
+        const parts = (pendingLine + text).split(/[\r\n]+/);
+        pendingLine = parts.pop() ?? "";
+        parts.forEach((l) => l && opts.onLine!(l));
+      }
+    });
     child.stderr.on("data", (d) => (stderr += d.toString()));
-    child.on("error", reject);
+
+    let watchdog: ReturnType<typeof setInterval> | undefined;
+    if (opts.stall) {
+      const { dir, ms } = opts.stall;
+      let last = dirBytes(dir);
+      let lastChange = Date.now();
+      watchdog = setInterval(() => {
+        const now = dirBytes(dir);
+        if (now !== last) {
+          last = now;
+          lastChange = Date.now();
+        } else if (Date.now() - lastChange > ms) {
+          stalled = true;
+          try {
+            if (child.pid) process.kill(-child.pid, "SIGKILL");
+          } catch {
+            child.kill("SIGKILL");
+          }
+        }
+      }, 4000);
+    }
+
+    child.on("error", (e) => {
+      clearInterval(watchdog);
+      reject(e);
+    });
     child.on("close", (code) => {
-      if (code === 0) resolve({ stdout, stderr });
+      clearInterval(watchdog);
+      if (stalled) reject(new Error(`${cmd} stalled: no download progress for ${Math.round((opts.stall?.ms ?? 0) / 1000)}s`));
+      else if (code === 0) resolve({ stdout, stderr });
       else reject(new Error(`${cmd} exited ${code}: ${stderr.slice(-4000)}`));
     });
   });

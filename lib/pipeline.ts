@@ -75,7 +75,18 @@ async function pipelineBody(
       try {
         sourcePath = await withSlot("download", 1, priority, () => {
           updateJob(jobId, { waiting: false, waitedMs: waitedMs(), message: "Fetching video…" });
-          return downloadFromUrl(sourceUrl, dir, range);
+          // slicing with --download-sections only pays off for a small piece of a very long video
+          const total = getJob(jobId)?.sourceDuration;
+          const useSections = !!range && !!total && total >= 1200 && range.end - range.start <= total * 0.3;
+          let shown = 8;
+          return downloadFromUrl(sourceUrl, dir, {
+            range,
+            useSections,
+            onProgress: (pct, speed) => {
+              shown = Math.max(shown, 8 + Math.round(pct * 0.16)); // download fills the 8–24% band
+              updateJob(jobId, { progress: shown, message: `Downloading ${Math.round(pct)}%${speed ? ` · ${speed}` : ""}` });
+            },
+          });
         });
       } catch (e: any) {
         if (isCancelled(e) || cancelRequested()) throw e;
