@@ -238,10 +238,12 @@ export default function StudioPage() {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="mx-auto flex max-w-2xl flex-col justify-center gap-12 py-8"
+            className="mx-auto flex w-full max-w-5xl flex-col justify-center gap-12 py-8"
           >
-            <ProgressView stage={job.stage} progress={job.progress} message={job.message} />
-            <TipTicker />
+            <div className="mx-auto flex w-full max-w-2xl flex-col gap-12">
+              <ProgressView stage={job.stage} progress={job.progress} message={job.message} />
+              <TipTicker />
+            </div>
             <GameHub />
           </motion.div>
         )}
