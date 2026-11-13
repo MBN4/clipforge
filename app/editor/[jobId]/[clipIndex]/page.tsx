@@ -230,7 +230,7 @@ export default function EditorPage() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-ink text-paper">
         <p className="font-display text-xl font-semibold">{loadError}</p>
-        <Link href="/studio" className="rounded-full bg-ember px-6 py-3 text-sm font-semibold text-ink">
+        <Link href="/studio/library" className="rounded-full bg-ember px-6 py-3 text-sm font-semibold text-ink">
           Back to studio
         </Link>
       </div>
@@ -248,7 +248,7 @@ export default function EditorPage() {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-ink text-paper">
       <header className="flex items-center justify-between border-b border-line px-6 py-3">
-        <Link href="/studio">
+        <Link href="/studio/library">
           <Logo />
         </Link>
         <p className="hidden truncate font-mono text-xs text-paper-dim sm:block">{clip.title}</p>
@@ -365,7 +365,7 @@ export default function EditorPage() {
                 Download
               </a>
               <button
-                onClick={() => router.push("/studio")}
+                onClick={() => router.push("/studio/library")}
                 className="rounded-full border border-line-strong px-4 py-2 text-xs font-semibold text-paper-dim hover:text-paper"
               >
                 Back to clips

@@ -7,7 +7,8 @@ export type JobStage =
   | "analyzing"
   | "rendering"
   | "done"
-  | "error";
+  | "error"
+  | "cancelled";
 
 export interface Word {
   word: string;
@@ -64,6 +65,20 @@ export interface Job {
   sourceDuration?: number;
   transcriptMethod?: "whisper" | "heuristic";
   clips: ClipResult[];
+  /** Display name — the video title, or the uploaded filename. */
+  title?: string;
+  thumbnail?: string;
+  /** What the user asked for; kept so a failed job can be retried as-is. */
+  request?: { clipCount?: number; range?: { start: number; end: number } };
+  /** When the pipeline actually began / ended (createdAt is when it was submitted). */
+  startedAt?: number;
+  finishedAt?: number;
+  /** Time spent blocked waiting for a free slot behind other jobs. */
+  waitedMs?: number;
+  /** True while the job is queued behind other work. */
+  waiting?: boolean;
+  /** Milliseconds spent in each stage (includes any waiting inside it). */
+  timings?: Partial<Record<JobStage, number>>;
 }
 
 // ---- Editor / export ----

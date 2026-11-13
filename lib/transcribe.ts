@@ -2,11 +2,13 @@ import path from "node:path";
 import fs from "node:fs";
 import { spawn } from "node:child_process";
 import { ffmpeg, run } from "./ffmpeg";
+import { trackChild } from "./scheduler";
 import type { Transcript, TranscriptSegment } from "./types";
 
 function runPython(args: string[]): Promise<{ code: number; stderr: string }> {
   return new Promise((resolve) => {
-    const child = spawn("python3", args, { stdio: ["ignore", "ignore", "pipe"] });
+    const child = spawn("python3", args, { stdio: ["ignore", "ignore", "pipe"], detached: true });
+    trackChild(child);
     let stderr = "";
     child.stderr.on("data", (d) => (stderr += d.toString()));
     child.on("error", (e) => resolve({ code: 1, stderr: String(e) }));

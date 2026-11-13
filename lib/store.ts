@@ -12,14 +12,32 @@ type DB = Record<string, Job>;
 // call raced with the async write queue (a read could land between two
 // writes and see stale data), which showed up as concurrent clip renders
 // occasionally clobbering each other's progress/stage updates.
-const db: DB = loadFromDisk();
+//
+// It lives on globalThis so dev hot-reloads (and separately bundled route
+// handlers) share one copy instead of each re-reading a stale snapshot.
+const ACTIVE = new Set(["queued", "downloading", "transcribing", "analyzing", "rendering"]);
+const g = globalThis as unknown as { __clipforgeDb?: DB };
+const db: DB = (g.__clipforgeDb ??= loadFromDisk(true));
 
 let writeQueue: Promise<unknown> = Promise.resolve();
 
-function loadFromDisk(): DB {
+function loadFromDisk(sweep = false): DB {
   if (!fs.existsSync(JOBS_DB)) return {};
   try {
-    return JSON.parse(fs.readFileSync(JOBS_DB, "utf-8"));
+    const parsed: DB = JSON.parse(fs.readFileSync(JOBS_DB, "utf-8"));
+    if (sweep) {
+      // nothing can still be running after a fresh process start
+      for (const job of Object.values(parsed)) {
+        if (ACTIVE.has(job.stage)) {
+          job.stage = "error";
+          job.waiting = false;
+          job.message = "Interrupted";
+          job.error = "The server restarted while this video was processing. Hit Retry to run it again.";
+          job.finishedAt = Date.now();
+        }
+      }
+    }
+    return parsed;
   } catch {
     return {};
   }
@@ -46,6 +64,11 @@ export function updateJob(id: string, patch: Partial<Job>) {
   db[id] = { ...existing, ...patch, updatedAt: Date.now() };
   persist();
   return db[id];
+}
+
+export function deleteJob(id: string) {
+  delete db[id];
+  persist();
 }
 
 export function listJobs(): Job[] {
