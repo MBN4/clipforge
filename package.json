@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "doctor": "node scripts/doctor.mjs",
+    "setup": "node scripts/doctor.mjs --fix"
   },
   "dependencies": {
     "chess.js": "^1.4.0",

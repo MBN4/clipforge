@@ -6,22 +6,41 @@ word-by-word captions, and gives you ready-to-post shorts. Then edit any clip in
 a real in-browser editor, including fully customizable caption styles and
 animations, before exporting. Free, no watermark, no account.
 
-## Requirements
+## Setting up on a new machine
 
-- Node 20+
-- `ffmpeg` / `ffprobe` on PATH, built with `libass` (captions) and `librsvg`
-  (sticker overlays) — most distro ffmpeg builds already include both
-- Python 3.10+ with `pip install yt-dlp faster-whisper`
-- libass 0.17+ (Ubuntu 24.04 / Debian 12 and newer) for the caption
-  "background box" option — everything else works on older libass too
-- A system font covering Latin text in bold (DejaVu Sans / Liberation Sans are
-  assumed by default on Linux) — used for text overlays. Caption fonts are
-  bundled in `public/fonts/`, so captions don't depend on what's installed
+Cloning the repo is not enough: Clipforge shells out to a few programs that
+`npm install` can't provide. If clipping "does nothing" on a fresh machine, one of
+these is missing.
+
+```bash
+git clone <repo> && cd clipforge
+npm install
+npm run doctor        # checks everything below and prints the exact fix for your OS
+npm run setup         # same, and downloads the official yt-dlp into ./bin if it's missing
+npm run dev           # then open http://localhost:3000
+```
+
+| Needed | For | Install |
+|---|---|---|
+| Node 20+ | everything | https://nodejs.org |
+| `ffmpeg` + `ffprobe` (with `libx264`; `libass` for captions) | cutting, reframing, captions, export | Linux `sudo apt install ffmpeg` · macOS `brew install ffmpeg` · Windows `winget install Gyan.FFmpeg` |
+| `yt-dlp` | pasted YouTube / TikTok / Instagram / Facebook links (uploads work without it) | `npm run setup`, or `pip install -U yt-dlp`, or `brew install yt-dlp` |
+| Python 3.10+ and `pip install faster-whisper` | speech-to-text → caption timing and smarter clip picking (optional — without it clips are picked by pacing and no captions are burned in) | `pip install faster-whisper` |
+
+The studio also shows a **setup banner** whenever something is missing on the
+machine it's running on, with the command to fix it and a Re-check button, and
+`GET /api/system` returns the same report as JSON. Programs are looked up as:
+`CLIPFORGE_FFMPEG` / `CLIPFORGE_FFPROBE` / `CLIPFORGE_YTDLP` / `CLIPFORGE_PYTHON`
+env var → `./bin/<name>` → `PATH`, so you can point at a custom install.
+
+Optional: `ANTHROPIC_API_KEY` enables AI re-ranking of the clip picks.
+Text overlays use a common system bold font (DejaVu / Liberation / Arial) and fall
+back to a bundled font, so exports don't depend on what the host has installed.
+Caption fonts are bundled in `public/fonts/`.
 
 ## Running locally
 
 ```bash
-npm install
 npm run dev
 ```
 

@@ -2,6 +2,12 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { trackChild } from "./scheduler";
+import { resolveBin } from "./systemChecks.mjs";
+
+/** Thrown when a required program isn't installed — worded so the user knows what to do about it. */
+export function missingToolError(cmd: string) {
+  return Object.assign(new Error(`${cmd} isn't installed (or isn't on PATH) on this machine. Run "npm run doctor" for install steps.`), { code: "ENOENT" });
+}
 
 export interface RunOptions {
   /** called for every line of stdout (e.g. to parse yt-dlp's progress output) */
@@ -26,7 +32,7 @@ function dirBytes(dir: string): number {
 
 export function run(cmd: string, args: string[], opts: RunOptions = {}): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"], detached: true });
+    const child = spawn(resolveBin(cmd), args, { stdio: ["ignore", "pipe", "pipe"], detached: true });
     trackChild(child);
     let stdout = "";
     let stderr = "";
@@ -66,7 +72,7 @@ export function run(cmd: string, args: string[], opts: RunOptions = {}): Promise
 
     child.on("error", (e) => {
       clearInterval(watchdog);
-      reject(e);
+      reject((e as NodeJS.ErrnoException).code === "ENOENT" ? missingToolError(cmd) : e);
     });
     child.on("close", (code) => {
       clearInterval(watchdog);

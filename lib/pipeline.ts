@@ -91,6 +91,9 @@ async function pipelineBody(
       } catch (e: any) {
         if (isCancelled(e) || cancelRequested()) throw e;
         console.error("[pipeline] download failed", e);
+        // a missing yt-dlp or a frozen connection deserves its own message, not the generic one below
+        if (e?.code === "ENOENT") throw e;
+        if (/stalled/.test(e?.message ?? "")) throw new Error("The download stalled — no data arrived for over a minute. Check your connection and hit Retry.");
         throw new Error(
           "Couldn't fetch that video. The link may be private, age-restricted, or the platform blocked the request — try a direct upload instead."
         );

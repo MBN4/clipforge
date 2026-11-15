@@ -9,6 +9,7 @@ import { SoundToggle } from "@/components/SoundToggle";
 import { DashboardProvider, useDashboard } from "./DashboardProvider";
 import { isActive } from "@/lib/dashboard";
 import { Label } from "./ui";
+import { SystemBanner } from "./SystemBanner";
 
 const NAV: { href: string; label: string; icon: LucideIcon; badge?: "queue" | "clips" }[] = [
   { href: "/studio", label: "Overview", icon: LayoutDashboard },
@@ -164,7 +165,10 @@ export function StudioShell({ children }: { children: React.ReactNode }) {
             <div className="absolute left-1/3 -top-40 h-[300px] w-[420px] rounded-full bg-moss/[0.05] blur-[120px]" />
           </div>
           <MobileBars />
-          <main className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-28 pt-8 sm:px-6 lg:px-10 lg:pb-16 lg:pt-12">{children}</main>
+          <main className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-28 pt-8 sm:px-6 lg:px-10 lg:pb-16 lg:pt-12">
+            <SystemBanner />
+            {children}
+          </main>
         </div>
       </div>
     </DashboardProvider>

@@ -12,6 +12,7 @@ export async function POST(req: NextRequest) {
     const info = await probeUrl(url);
     return NextResponse.json({ ...info, platform: detectPlatform(url) });
   } catch (e: any) {
+    if (e?.code === "ENOENT") return NextResponse.json({ error: e.message }, { status: 503 });
     return NextResponse.json(
       { error: "Couldn't read that video. It may be private or the link is unsupported." },
       { status: 422 }

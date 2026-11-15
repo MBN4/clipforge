@@ -26,12 +26,26 @@ function shiftIntoTrim(start: number, end: number, trimStart: number, trimEnd: n
   return { start: s - trimStart, end: e - trimStart };
 }
 
-const FONT_FILES: Record<string, string> = {
-  "DejaVu Sans": "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-  "Liberation Sans": "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-  "DejaVu Serif": "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf",
-  "Liberation Mono": "/usr/share/fonts/truetype/liberation/LiberationMono-Bold.ttf",
-};
+// Text overlays need a bold font file for ffmpeg's drawtext. Use whichever common system font exists
+// (Linux / macOS / Windows), and fall back to a bundled font so the export never depends on the host.
+const OVERLAY_FONT_CANDIDATES = [
+  "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+  "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
+  "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
+  "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+  "/usr/share/fonts/liberation/LiberationSans-Bold.ttf",
+  "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+  "/Library/Fonts/Arial Bold.ttf",
+  "C:/Windows/Fonts/arialbd.ttf",
+];
+let overlayFont: string | undefined;
+function overlayFontFile(): string {
+  if (!overlayFont) {
+    overlayFont =
+      OVERLAY_FONT_CANDIDATES.find((f) => fs.existsSync(f)) ?? path.join(CAPTION_FONTS_DIR, "Poppins-ExtraBold.ttf");
+  }
+  return overlayFont;
+}
 
 export interface ExportInput {
   rawPath: string;
@@ -104,7 +118,7 @@ export async function exportClip({ rawPath, outDir, baseName, spec }: ExportInpu
     const x = `(${t.x}*1080-text_w/2)`;
     const y = `(${t.y}*1920-text_h/2)`;
     videoFilters.push(
-      `[${vLabel}]drawtext=fontfile=${escapeForFilterPath(FONT_FILES["DejaVu Sans"])}:text='${escapeDrawtext(
+      `[${vLabel}]drawtext=fontfile=${escapeForFilterPath(overlayFontFile())}:text='${escapeDrawtext(
         t.text
       )}':fontsize=${Math.round(t.fontSize)}:fontcolor=${t.color}:borderw=3:bordercolor=black@0.6:x='${x}':y='${y}':enable='between(t,${
         win.start
