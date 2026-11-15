@@ -43,5 +43,8 @@ if (!report.ready) {
 }
 const notes = [];
 if (!report.canDownloadLinks) notes.push("pasted links won't work until yt-dlp is installed (uploads work)");
-if (!report.canCaption) notes.push("captions are skipped until faster-whisper + libass are available");
+if (!report.canCaption) {
+  const miss = ["whisper", "libass"].filter((id) => !report.checks.find((c) => c.id === id)?.ok).map((id) => (id === "whisper" ? "Python + faster-whisper" : "an ffmpeg build with libass"));
+  notes.push(`captions are skipped until ${miss.join(" and ")} ${miss.length > 1 ? "are" : "is"} available`);
+}
 console.log(notes.length ? `${C.g}${C.b}Ready${C.x} — with limits: ${notes.join("; ")}.` : `${C.g}${C.b}All set.${C.x} Start it with ${C.b}npm run dev${C.x}.`);
