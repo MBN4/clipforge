@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, Check, Copy, Info, RefreshCw } from "lucide-react";
+import { AlertTriangle, Check, Copy, Download, Info, Loader, RefreshCw } from "lucide-react";
 import type { SystemCheck, SystemReport } from "@/lib/system";
 
 const DISMISS_KEY = "clipforge-system-note-dismissed";
@@ -44,6 +44,24 @@ export function SystemBanner() {
       return false;
     }
   });
+
+  const [installing, setInstalling] = useState(false);
+  const [installError, setInstallError] = useState<string | null>(null);
+
+  const installYtDlp = useCallback(async () => {
+    setInstalling(true);
+    setInstallError(null);
+    try {
+      const res = await fetch("/api/system/install", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data.error || "Install failed");
+      setReport(data.report);
+    } catch (e) {
+      setInstallError(e instanceof Error ? e.message : "Install failed");
+    } finally {
+      setInstalling(false);
+    }
+  }, []);
 
   const recheck = useCallback(async () => {
     setChecking(true);
@@ -105,7 +123,22 @@ export function SystemBanner() {
                 <li key={c.id} className="rounded-xl border border-line-strong bg-ink/60 p-3">
                   <p className="text-sm font-medium text-paper">{c.label}</p>
                   <p className="mt-0.5 text-xs text-paper-dim">{c.detail}</p>
-                  {fix && (
+                  {c.id === "yt-dlp" && (
+                    <div className="mt-2.5">
+                      <button
+                        type="button"
+                        onClick={installYtDlp}
+                        disabled={installing}
+                        className="inline-flex items-center gap-2 rounded-full bg-ember px-4 py-2 text-xs font-semibold text-ink transition hover:brightness-110 disabled:opacity-60"
+                      >
+                        {installing ? <Loader className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                        {installing ? "Installing…" : "Install yt-dlp"}
+                      </button>
+                      <p className="mt-1.5 text-[11px] text-paper-dim">Downloads the official release into this project&apos;s bin folder and verifies its checksum.</p>
+                      {installError && <p className="mt-1.5 text-xs text-red-300">{installError}</p>}
+                    </div>
+                  )}
+                  {fix && c.id !== "yt-dlp" && (
                     <div className="mt-2 flex items-center gap-2 rounded-lg bg-black/40 px-3 py-2 font-mono text-[11px] text-ember-soft">
                       <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap">{fix}</code>
                       <CopyButton text={fix} />

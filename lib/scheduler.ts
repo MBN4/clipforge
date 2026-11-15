@@ -10,7 +10,7 @@
 // busy on the CPU.
 import os from "node:os";
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { ChildProcess } from "node:child_process";
+import { spawnSync, type ChildProcess } from "node:child_process";
 
 export interface RunContext {
   jobId: string;
@@ -203,9 +203,14 @@ export function throwIfCancelled() {
 
 function killTree(child: ChildProcess) {
   try {
-    // children are spawned detached (their own process group) so yt-dlp's ffmpeg dies with it
-    if (child.pid) process.kill(-child.pid, "SIGKILL");
-    else child.kill("SIGKILL");
+    if (process.platform === "win32") {
+      // no process groups on Windows: taskkill /T takes the whole tree (yt-dlp's ffmpeg included)
+      if (child.pid) spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], { windowsHide: true });
+      else child.kill();
+    } else if (child.pid) {
+      // children are spawned detached (their own process group) so yt-dlp's ffmpeg dies with it
+      process.kill(-child.pid, "SIGKILL");
+    } else child.kill("SIGKILL");
   } catch {
     try {
       child.kill("SIGKILL");

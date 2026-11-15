@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { trackChild } from "./scheduler";
@@ -6,7 +6,26 @@ import { resolveBin } from "./systemChecks.mjs";
 
 /** Thrown when a required program isn't installed — worded so the user knows what to do about it. */
 export function missingToolError(cmd: string) {
-  return Object.assign(new Error(`${cmd} isn't installed (or isn't on PATH) on this machine. Run "npm run doctor" for install steps.`), { code: "ENOENT" });
+  const hint =
+    cmd === "yt-dlp"
+      ? `yt-dlp isn't installed on this machine. Click "Install yt-dlp" in the setup banner at the top of the studio (or run "npm run setup").`
+      : `${cmd} isn't installed (or isn't on PATH) on this machine. Run "npm run doctor" for install steps.`;
+  return Object.assign(new Error(hint), { code: "ENOENT" });
+}
+
+/** Kill a process and everything it spawned (yt-dlp starts ffmpeg). Windows has no process groups, so use taskkill. */
+export function killTree(child: { pid?: number; kill: (s?: NodeJS.Signals) => boolean }) {
+  try {
+    if (process.platform === "win32") {
+      if (child.pid) spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], { windowsHide: true });
+      else child.kill();
+    } else if (child.pid) process.kill(-child.pid, "SIGKILL");
+    else child.kill("SIGKILL");
+  } catch {
+    try {
+      child.kill("SIGKILL");
+    } catch {}
+  }
 }
 
 export interface RunOptions {
@@ -32,7 +51,7 @@ function dirBytes(dir: string): number {
 
 export function run(cmd: string, args: string[], opts: RunOptions = {}): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(resolveBin(cmd), args, { stdio: ["ignore", "pipe", "pipe"], detached: true });
+    const child = spawn(resolveBin(cmd), args, { stdio: ["ignore", "pipe", "pipe"], detached: process.platform !== "win32", windowsHide: true });
     trackChild(child);
     let stdout = "";
     let stderr = "";
@@ -61,11 +80,7 @@ export function run(cmd: string, args: string[], opts: RunOptions = {}): Promise
           lastChange = Date.now();
         } else if (Date.now() - lastChange > ms) {
           stalled = true;
-          try {
-            if (child.pid) process.kill(-child.pid, "SIGKILL");
-          } catch {
-            child.kill("SIGKILL");
-          }
+          killTree(child);
         }
       }, 4000);
     }
