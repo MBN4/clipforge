@@ -8,10 +8,11 @@ import { requestNotificationPermission, notifyJobDone } from "@/lib/notify";
 import { isActive } from "@/lib/dashboard";
 import type { ClientJob } from "@/lib/serialize";
 import type { SystemSnapshot } from "@/lib/scheduler";
+import type { ClipMode } from "@/lib/types";
 
 export type NewJobInput =
-  | { kind: "url"; url: string; title?: string; thumbnail?: string; duration?: number; clipCount: number; range?: { start: number; end: number } }
-  | { kind: "file"; file: File; title: string; duration?: number; clipCount: number; range?: { start: number; end: number } };
+  | { kind: "url"; url: string; title?: string; thumbnail?: string; duration?: number; clipCount: number; mode?: ClipMode; range?: { start: number; end: number } }
+  | { kind: "file"; file: File; title: string; duration?: number; clipCount: number; mode?: ClipMode; range?: { start: number; end: number } };
 
 interface Dashboard {
   jobs: ClientJob[];
@@ -163,6 +164,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
             thumbnail: input.thumbnail,
             duration: input.duration,
             clipCount: input.clipCount,
+            mode: input.mode,
             rangeStart: input.range?.start,
             rangeEnd: input.range?.end,
           }),
@@ -175,6 +177,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         form.append("file", input.file);
         form.append("title", input.title);
         form.append("clipCount", String(input.clipCount));
+        if (input.mode) form.append("mode", input.mode);
         if (input.duration) form.append("duration", String(input.duration));
         if (input.range) {
           form.append("rangeStart", String(input.range.start));

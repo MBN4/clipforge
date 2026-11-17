@@ -21,7 +21,7 @@ const MIN_CLIP = 18;
 const MAX_CLIP = 55;
 const DEFAULT_TARGET_COUNT = 5;
 
-function flattenWords(segments: TranscriptSegment[]): Word[] {
+export function flattenWords(segments: TranscriptSegment[]): Word[] {
   const words: Word[] = [];
   for (const seg of segments) {
     if (seg.words && seg.words.length) {
@@ -38,19 +38,25 @@ function flattenWords(segments: TranscriptSegment[]): Word[] {
   return words;
 }
 
-function scoreText(text: string, wordsPerSec: number): { score: number; reason: string } {
+// A window's keyword/punctuation hits add up with its length, so raw sums always crown the
+// longest window (nearly every clip came out ~55s). Hits are therefore counted per 25s of
+// speech: windows of 25s or more compete on equal terms, and only a genuinely better moment wins.
+const LENGTH_NEUTRAL_SECS = 25;
+
+function scoreText(text: string, wordsPerSec: number, duration: number): { score: number; reason: string } {
   const lower = text.toLowerCase();
-  let score = 0;
+  let hitScore = 0;
   const hits: string[] = [];
   for (const kw of HOOK_WORDS) {
     if (lower.includes(kw)) {
-      score += 1.4;
+      hitScore += 1.4;
       hits.push(kw);
     }
   }
   const exclam = (text.match(/!/g) || []).length;
   const question = (text.match(/\?/g) || []).length;
-  score += exclam * 0.8 + question * 0.6;
+  hitScore += exclam * 0.8 + question * 0.6;
+  let score = hitScore * (LENGTH_NEUTRAL_SECS / Math.max(duration, LENGTH_NEUTRAL_SECS));
   score += Math.min(wordsPerSec, 3.2) * 1.1;
   if (/\b(i|you|we)\b/i.test(text)) score += 0.6;
   const reason = hits.length
@@ -61,22 +67,28 @@ function scoreText(text: string, wordsPerSec: number): { score: number; reason: 
   return { score, reason };
 }
 
+const endsSentence = (w: string) => /[.!?]["')\]]*$/.test(w.trim());
+
 function buildWindowsFromWords(words: Word[], duration: number): Window[] {
   const windows: Window[] = [];
   if (!words.length) return windows;
 
   for (let i = 0; i < words.length; i++) {
+    // start where a sentence starts and end where one ends, so clips don't open or stop mid-thought —
+    // which is also what makes their lengths follow the content instead of a fixed size
+    const startsSentence = i === 0 || endsSentence(words[i - 1].word) || words[i].start - words[i - 1].end > 0.7;
+    if (!startsSentence) continue;
     const startWord = words[i];
     let j = i;
     let text = "";
     while (j < words.length && words[j].end - startWord.start <= MAX_CLIP) {
       text += (text ? " " : "") + words[j].word;
       const len = words[j].end - startWord.start;
-      if (len >= MIN_CLIP) {
+      const endsHere = endsSentence(words[j].word) || (words[j + 1] && words[j + 1].start - words[j].end > 0.7) || j === words.length - 1;
+      if (len >= MIN_CLIP && endsHere) {
         const slice = words.slice(i, j + 1);
-        const dur = words[j].end - startWord.start;
-        const wps = slice.length / Math.max(dur, 1);
-        const { score, reason } = scoreText(text, wps);
+        const wps = slice.length / Math.max(len, 1);
+        const { score, reason } = scoreText(text, wps, len);
         windows.push({ start: startWord.start, end: words[j].end, text, words: slice, score, reason });
       }
       j++;
@@ -112,12 +124,16 @@ function topUp(selected: Window[], targetCount: number, duration: number): Windo
   return result.sort((a, b) => a.start - b.start);
 }
 
+// Evenly spaced picks used when there's no transcript to score. Giving each the same length looked
+// robotic, so lengths cycle through a few proportions of the slot (still inside MIN..MAX_CLIP).
+const LENGTH_PATTERN = [1, 0.7, 0.88, 0.58, 0.8];
+
 function evenSplit(duration: number, count: number): Window[] {
-  const clipLen = Math.min(MAX_CLIP, Math.max(MIN_CLIP, duration / count));
+  const slot = duration / count;
   const windows: Window[] = [];
-  const step = duration / count;
   for (let i = 0; i < count; i++) {
-    const start = i * step;
+    const clipLen = Math.min(MAX_CLIP, Math.max(MIN_CLIP, Math.min(slot, MAX_CLIP) * LENGTH_PATTERN[i % LENGTH_PATTERN.length]));
+    const start = i * slot;
     const end = Math.min(duration, start + clipLen);
     if (end - start < 6) continue;
     windows.push({
@@ -137,7 +153,7 @@ export interface SelectedClip extends Window {
   hook: string;
 }
 
-function titleFromText(text: string, index: number): { title: string; hook: string } {
+export function titleFromText(text: string, index: number): { title: string; hook: string } {
   if (!text) return { title: `Clip ${index + 1}`, hook: "Auto-detected highlight" };
   const clean = text.replace(/\s+/g, " ").trim();
   const sentence = clean.split(/(?<=[.!?])\s/)[0] || clean;

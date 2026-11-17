@@ -2,6 +2,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { run, trimSource } from "./ffmpeg";
 import { cancelRequested } from "./scheduler";
+import type { HeatPoint } from "./peaks";
 
 export function detectPlatform(url: string): string {
   const u = url.toLowerCase();
@@ -16,6 +17,15 @@ export interface UrlInfo {
   duration: number;
   title: string;
   thumbnail?: string;
+  /** True when the platform publishes a "most replayed" graph for this video (YouTube). */
+  hasHeatmap: boolean;
+}
+
+function parseHeatmap(raw: unknown): HeatPoint[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((p: { start_time?: unknown; end_time?: unknown; value?: unknown } | null) => ({ start: Number(p?.start_time), end: Number(p?.end_time), value: Number(p?.value) }))
+    .filter((p) => Number.isFinite(p.start) && Number.isFinite(p.end) && Number.isFinite(p.value) && p.end > p.start);
 }
 
 export async function probeUrl(url: string): Promise<UrlInfo> {
@@ -31,7 +41,14 @@ export async function probeUrl(url: string): Promise<UrlInfo> {
     duration: Number(data.duration) || 0,
     title: data.title || "Untitled video",
     thumbnail: data.thumbnail,
+    hasHeatmap: parseHeatmap(data.heatmap).length > 0,
   };
+}
+
+/** The video's "most replayed" graph, or [] if the platform doesn't publish one. */
+export async function fetchHeatmap(url: string): Promise<HeatPoint[]> {
+  const { stdout } = await run("yt-dlp", ["--no-playlist", "--skip-download", "--dump-json", "--no-warnings", url]);
+  return parseHeatmap(JSON.parse(stdout.trim().split("\n")[0]).heatmap);
 }
 
 function toTimestamp(seconds: number): string {

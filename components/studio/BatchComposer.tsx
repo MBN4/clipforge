@@ -3,13 +3,14 @@
 import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { AlertTriangle, ArrowRight, Clapperboard, Clock, FileVideo, Link2, Loader, Scissors, Upload, X } from "lucide-react";
+import { Activity, AlertTriangle, ArrowRight, Clapperboard, Clock, FileVideo, Flame, Link2, Loader, Scissors, Upload, X } from "lucide-react";
 import { clipCountRange } from "@/lib/clipCount";
 import { fmtBytes, readFileDuration } from "@/lib/clientMedia";
 import { fmtDur } from "@/lib/dashboard";
 import { RangePicker } from "./RangePicker";
 import { useDashboard, type NewJobInput } from "./DashboardProvider";
 import { Card, Label } from "./ui";
+import type { ClipMode } from "@/lib/types";
 
 type Status = "probing" | "ready" | "error" | "submitting";
 
@@ -22,6 +23,8 @@ interface Item {
   platform?: string;
   thumbnail?: string;
   duration?: number;
+  /** the link has YouTube's "most replayed" graph */
+  hasHeatmap?: boolean;
   status: Status;
   error?: string;
   upload?: number;
@@ -118,6 +121,11 @@ function ItemCard({
                   {dur > 0 && (
                     <span className="inline-flex items-center gap-1">
                       <Clock className="h-3 w-3" /> {fmtDur(dur)}
+                    </span>
+                  )}
+                  {item.hasHeatmap && (
+                    <span className="inline-flex items-center gap-1 text-ember" title="YouTube's most-replayed graph is available for this video">
+                      <Flame className="h-3 w-3" /> replay graph
                     </span>
                   )}
                 </p>
@@ -226,6 +234,7 @@ export function BatchComposer() {
   const [note, setNote] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [mode, setMode] = useState<ClipMode>("peaks");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const patch = useCallback((key: string, p: Partial<Item>) => setItems((cur) => cur.map((i) => (i.key === key ? { ...i, ...p } : i))), []);
@@ -243,6 +252,7 @@ export function BatchComposer() {
             thumbnail: data.thumbnail,
             platform: data.platform,
             duration: data.duration,
+            hasHeatmap: !!data.hasHeatmap,
             rangeEnd: data.duration,
             clipCount: clipCountRange(data.duration).default,
           });
@@ -315,6 +325,7 @@ export function BatchComposer() {
         const max = clipCountRange(i.useRange ? i.rangeEnd - i.rangeStart : (i.duration ?? 0)).max;
         const base = {
           clipCount: Math.min(i.clipCount, max),
+          mode,
           duration: i.duration || undefined,
           range: i.useRange ? { start: i.rangeStart, end: i.rangeEnd } : undefined,
         };
@@ -425,6 +436,34 @@ export function BatchComposer() {
       </div>
 
       {note && <p className="mt-3 text-xs text-paper-dim">{note}</p>}
+
+      <Card className="mt-6 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="font-display text-base font-semibold text-paper">How should clips be picked?</h2>
+            <p className="mt-1 text-xs text-paper-dim">
+              {mode === "peaks"
+                ? "Cuts around the spikes in YouTube's “most replayed” graph. Links and files without one use the loudest, most intense moments instead. Each clip is as long as its spike."
+                : "Scores the transcript for hooks and pacing, and picks the strongest self-contained moments."}
+            </p>
+          </div>
+          <div className="inline-flex shrink-0 rounded-full border border-line-strong bg-ink-3 p-0.5 text-[11px]">
+            {([
+              ["peaks", "Most-watched", Flame],
+              ["auto", "Transcript", Activity],
+            ] as const).map(([key, label, Icon]) => (
+              <button
+                key={key}
+                onClick={() => setMode(key)}
+                disabled={starting}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 font-semibold transition ${mode === key ? "bg-paper text-ink" : "text-paper-dim hover:text-paper"}`}
+              >
+                <Icon className="h-3.5 w-3.5" /> {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </Card>
 
       <div className="mb-3 mt-10 flex items-center justify-between">
         <div className="flex items-center gap-3">
