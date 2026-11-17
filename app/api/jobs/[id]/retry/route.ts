@@ -36,13 +36,14 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     error: undefined,
     clips: [],
     timings: undefined,
+    pickMethod: undefined,
     startedAt: undefined,
     finishedAt: undefined,
     waitedMs: 0,
     waiting: false,
     createdAt: Date.now(), // goes to the back of the line
   });
-  const { clipCount, range } = job.request ?? {};
-  runPipeline(id, sourceUrl, uploadedPath, clipCount, range).catch((e) => console.error("pipeline crash", e));
+  const { clipCount, range, mode } = job.request ?? {};
+  runPipeline(id, sourceUrl, uploadedPath, clipCount, range, mode).catch((e) => console.error("pipeline crash", e));
   return NextResponse.json({ ok: true });
 }

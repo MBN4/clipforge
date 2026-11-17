@@ -4,15 +4,16 @@ import { nanoid } from "nanoid";
 import { updateJob, getJob } from "./store";
 import { runInContext, withSlot, throwIfCancelled, isCancelled, cancelRequested, blockedMs, RENDER_WEIGHT, TRANSCRIBE_WEIGHT } from "./scheduler";
 import { ensureDir, jobDir, clipsDir } from "./paths";
-import { downloadFromUrl, type TimeRange } from "./download";
+import { downloadFromUrl, fetchHeatmap, type TimeRange } from "./download";
 import { probe, trimSource, extractThumb } from "./ffmpeg";
 import { toFileUrl } from "./url";
 import { transcribe } from "./transcribe";
-import { selectHighlights } from "./highlights";
+import { selectHighlights, type SelectedClip } from "./highlights";
+import { audioEnergyCurve, heatmapToCurve, peaksToClips, pickPeaks, sentenceBoundaries, type PeakSource } from "./peaks";
 import { aiRankHighlights } from "./ai";
 import { renderClip } from "./render";
 import { clampClipCount } from "./clipCount";
-import type { ClipResult, JobStage } from "./types";
+import type { ClipMode, ClipResult, JobStage, Transcript } from "./types";
 
 const WAIT_LABEL = { download: "a download slot", cpu: "free CPU" } as const;
 
@@ -21,7 +22,8 @@ export function runPipeline(
   sourceUrl: string | null,
   uploadedPath: string | null,
   requestedClipCount?: number,
-  range?: TimeRange
+  range?: TimeRange,
+  mode: ClipMode = "auto"
 ) {
   const priority = getJob(jobId)?.createdAt ?? Date.now();
   return runInContext(
@@ -36,7 +38,7 @@ export function runPipeline(
         message: `Waiting for ${WAIT_LABEL[pool]}${ahead > 0 ? ` — ${ahead} ahead` : ""}…`,
       });
     },
-    (ctx) => pipelineBody(ctx.jobId, priority, sourceUrl, uploadedPath, requestedClipCount, range, () => blockedMs(ctx))
+    (ctx) => pipelineBody(ctx.jobId, priority, sourceUrl, uploadedPath, requestedClipCount, range, mode, () => blockedMs(ctx))
   );
 }
 
@@ -47,6 +49,7 @@ async function pipelineBody(
   uploadedPath: string | null,
   requestedClipCount: number | undefined,
   range: TimeRange | undefined,
+  mode: ClipMode,
   waitedMs: () => number
 ) {
   const dir = jobDir(jobId);
@@ -136,7 +139,17 @@ async function pipelineBody(
 
     const clipCount = clampClipCount(requestedClipCount ?? 4, info.duration);
     const heuristic = selectHighlights(transcript, clipCount);
-    const ranked = await aiRankHighlights(transcript, heuristic, clipCount);
+    let peakClips: SelectedClip[] | null = null;
+    if (mode === "peaks") {
+      updateJob(jobId, { message: "Finding the most-watched moments…" });
+      const found = await pickByPeaks(sourceUrl, range, transcript, dir, info.duration, clipCount, heuristic);
+      if (found) {
+        peakClips = found.clips;
+        updateJob(jobId, { pickMethod: found.method });
+      }
+    }
+    if (!peakClips) updateJob(jobId, { pickMethod: "transcript" });
+    const ranked: SelectedClip[] = peakClips ?? (await aiRankHighlights(transcript, heuristic, clipCount));
 
     throwIfCancelled();
     enter("rendering", { progress: 60, message: "Cutting vertical clips…" });
@@ -224,4 +237,54 @@ async function pipelineBody(
     console.error("[pipeline] failed", err);
     enter("error", { message: "Something went wrong", error: err?.message ?? String(err), finishedAt: Date.now() });
   }
+}
+
+/**
+ * Pick clips around the video's most-watched spikes: YouTube's "most replayed" graph when the
+ * link has one, otherwise the loudest stretches of the audio. Returns null when neither shows a
+ * real spike, so the caller falls back to transcript scoring. Short of `count` spikes, the rest
+ * is filled from the transcript-based picks that don't overlap.
+ */
+async function pickByPeaks(
+  sourceUrl: string | null,
+  range: TimeRange | undefined,
+  transcript: Transcript,
+  dir: string,
+  duration: number,
+  count: number,
+  fallback: SelectedClip[]
+): Promise<{ clips: SelectedClip[]; method: PeakSource } | null> {
+  let curve: number[] | null = null;
+  let method: PeakSource = "audio";
+
+  if (sourceUrl) {
+    try {
+      const heat = await fetchHeatmap(sourceUrl);
+      // the downloaded file starts at the chosen range's start, the graph is in original time
+      if (heat.length) {
+        curve = heatmapToCurve(heat, duration, range?.start ?? 0);
+        method = "heatmap";
+      }
+    } catch (e) {
+      if (isCancelled(e) || cancelRequested()) throw e;
+      console.warn("[peaks] couldn't read the most-replayed graph, using audio energy:", e instanceof Error ? e.message : e);
+    }
+  }
+  if (!curve) curve = audioEnergyCurve(path.join(dir, "audio.wav"), duration);
+
+  let picks = curve ? pickPeaks(curve, count, sentenceBoundaries(transcript)) : [];
+  // a graph that exists but is flat (new video, few views) says nothing — try the audio instead
+  if (!picks.length && method === "heatmap") {
+    method = "audio";
+    const audio = audioEnergyCurve(path.join(dir, "audio.wav"), duration);
+    picks = audio ? pickPeaks(audio, count, sentenceBoundaries(transcript)) : [];
+  }
+  if (!picks.length) return null;
+
+  const clips = peaksToClips(picks, transcript, method);
+  for (const h of fallback) {
+    if (clips.length >= count) break;
+    if (!clips.some((c) => h.start < c.end && h.end > c.start)) clips.push(h);
+  }
+  return { clips: clips.sort((a, b) => a.start - b.start), method };
 }

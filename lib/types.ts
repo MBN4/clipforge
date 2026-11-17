@@ -10,6 +10,9 @@ export type JobStage =
   | "error"
   | "cancelled";
 
+/** "auto": score the transcript. "peaks": cut around the most-watched / most intense moments. */
+export type ClipMode = "auto" | "peaks";
+
 export interface Word {
   word: string;
   start: number;
@@ -69,7 +72,9 @@ export interface Job {
   title?: string;
   thumbnail?: string;
   /** What the user asked for; kept so a failed job can be retried as-is. */
-  request?: { clipCount?: number; range?: { start: number; end: number } };
+  request?: { clipCount?: number; range?: { start: number; end: number }; mode?: ClipMode };
+  /** How the clips were actually chosen (peaks mode falls back from heatmap to audio to transcript). */
+  pickMethod?: "heatmap" | "audio" | "transcript";
   /** When the pipeline actually began / ended (createdAt is when it was submitted). */
   startedAt?: number;
   finishedAt?: number;

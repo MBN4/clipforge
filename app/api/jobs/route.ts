@@ -11,7 +11,7 @@ import { ensureDir, jobDir } from "@/lib/paths";
 import { detectPlatform } from "@/lib/download";
 import { runPipeline } from "@/lib/pipeline";
 import type { TimeRange } from "@/lib/download";
-import type { Job } from "@/lib/types";
+import type { ClipMode, Job } from "@/lib/types";
 
 function parseRange(rawStart: unknown, rawEnd: unknown): TimeRange | undefined {
   const start = typeof rawStart === "string" ? parseFloat(rawStart) : typeof rawStart === "number" ? rawStart : NaN;
@@ -21,6 +21,7 @@ function parseRange(rawStart: unknown, rawEnd: unknown): TimeRange | undefined {
 }
 
 const str = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : undefined);
+const parseMode = (v: unknown): ClipMode => (v === "peaks" ? "peaks" : "auto");
 const num = (v: unknown) => {
   const n = typeof v === "string" ? parseFloat(v) : typeof v === "number" ? v : NaN;
   return Number.isFinite(n) && n > 0 ? n : undefined;
@@ -41,6 +42,7 @@ export async function POST(req: NextRequest) {
   let source: Job["source"];
   let clipCount: number | undefined;
   let range: TimeRange | undefined;
+  let mode: ClipMode = "auto";
   let title: string | undefined;
   let thumbnail: string | undefined;
   let duration: number | undefined;
@@ -60,6 +62,7 @@ export async function POST(req: NextRequest) {
     const rawCount = form.get("clipCount");
     if (typeof rawCount === "string") clipCount = parseInt(rawCount, 10);
     range = parseRange(form.get("rangeStart"), form.get("rangeEnd"));
+    mode = parseMode(form.get("mode"));
   } else {
     const body = await req.json().catch(() => ({}));
     const url = (body.url || "").trim();
@@ -70,6 +73,7 @@ export async function POST(req: NextRequest) {
     source = { type: "url", url, platform: detectPlatform(url) };
     if (typeof body.clipCount === "number") clipCount = body.clipCount;
     range = parseRange(body.rangeStart, body.rangeEnd);
+    mode = parseMode(body.mode);
     title = str(body.title, 200);
     thumbnail = str(body.thumbnail, 1000);
     duration = num(body.duration);
@@ -83,7 +87,7 @@ export async function POST(req: NextRequest) {
     title,
     thumbnail,
     sourceDuration: duration,
-    request: { clipCount, range },
+    request: { clipCount, range, mode },
     stage: "queued",
     progress: 2,
     message: "Queued…",
@@ -91,7 +95,7 @@ export async function POST(req: NextRequest) {
   };
   createJob(job);
 
-  runPipeline(id, sourceUrl, uploadedPath, clipCount, range).catch((e) => console.error("pipeline crash", e));
+  runPipeline(id, sourceUrl, uploadedPath, clipCount, range, mode).catch((e) => console.error("pipeline crash", e));
 
   return NextResponse.json({ id });
 }
