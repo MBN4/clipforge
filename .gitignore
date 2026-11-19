@@ -47,3 +47,7 @@ dev.log
 
 # local tools installed by `npm run setup`
 /bin/
+
+venv/
+__pycache__/
+*.py[cod]
