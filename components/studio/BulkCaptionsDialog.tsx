@@ -11,6 +11,7 @@ import {
   type CaptionStyle,
 } from "@/lib/captions";
 import { captionFontCss, getCaptionFont } from "@/lib/captionFonts";
+import { Select } from "@/components/ui/Select";
 import type { ClientClip } from "@/lib/serialize";
 import type { Word } from "@/lib/types";
 
@@ -212,20 +213,12 @@ export function BulkCaptionsDialog({ items, onClose, onDone }: { items: BulkItem
                   })}
                 </div>
               </div>
-              <label className="block">
+              <div>
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-paper-dim">Spoken language</span>
-                <select
-                  value={language}
-                  onChange={(e) => setLanguage(e.target.value)}
-                  className="mt-1.5 w-full rounded-lg border border-line-strong bg-ink-3 px-3 py-2 text-sm text-paper"
-                >
-                  {LANGUAGES.map(([code, name]) => (
-                    <option key={code} value={code}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                <div className="mt-1.5">
+                  <Select value={language} onChange={setLanguage} ariaLabel="Spoken language" options={LANGUAGES.map(([value, label]) => ({ value, label }))} />
+                </div>
+              </div>
               <p className="rounded-lg bg-ink-3 px-3 py-2 text-[11px] leading-snug text-paper-dim">
                 Clips are re-rendered from their original cut, so any editor changes you made to these clips are replaced. Transcribing takes roughly a few seconds per clip.
               </p>

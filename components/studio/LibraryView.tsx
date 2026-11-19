@@ -7,6 +7,7 @@ import { AnimatePresence } from "framer-motion";
 import { ArrowRight, Captions, Clapperboard, Loader, Search, Trash2, X } from "lucide-react";
 import { useDashboard } from "./DashboardProvider";
 import { ClipCard } from "./ClipCard";
+import { Select } from "@/components/ui/Select";
 import { BulkCaptionsDialog } from "./BulkCaptionsDialog";
 import { EmptyState, PageHeader } from "./ui";
 import { jobTitle } from "@/lib/dashboard";
@@ -126,30 +127,26 @@ export function LibraryView() {
                 className="w-full rounded-xl border border-line-strong bg-ink-2 py-3 pl-11 pr-4 text-sm text-paper outline-none transition placeholder:text-paper-dim/60 focus:border-ember"
               />
             </label>
-            <select
+            <Select
               value={jobFilter}
-              onChange={(e) => setJob(e.target.value)}
-              aria-label="Filter by video"
-              className="rounded-xl border border-line-strong bg-ink-2 px-4 py-3 text-sm text-paper outline-none transition focus:border-ember sm:w-56"
-            >
-              <option value="">All videos</option>
-              {doneJobs.map((j) => (
-                <option key={j.id} value={j.id}>
-                  {jobTitle(j).slice(0, 48)}
-                </option>
-              ))}
-            </select>
-            <select
+              onChange={setJob}
+              ariaLabel="Filter by video"
+              className="sm:w-56"
+              menuWidth={400}
+              options={[{ value: "", label: "All videos" }, ...doneJobs.map((j) => ({ value: j.id, label: jobTitle(j) }))]}
+            />
+            <Select
               value={sort}
-              onChange={(e) => setSort(e.target.value as Sort)}
-              aria-label="Sort clips"
-              className="rounded-xl border border-line-strong bg-ink-2 px-4 py-3 text-sm text-paper outline-none transition focus:border-ember sm:w-40"
-            >
-              <option value="newest">Newest</option>
-              <option value="score">Top score</option>
-              <option value="longest">Longest</option>
-              <option value="shortest">Shortest</option>
-            </select>
+              onChange={setSort}
+              ariaLabel="Sort clips"
+              className="sm:w-40"
+              options={[
+                { value: "newest", label: "Newest" },
+                { value: "score", label: "Top score" },
+                { value: "longest", label: "Longest" },
+                { value: "shortest", label: "Shortest" },
+              ]}
+            />
           </div>
 
           {selected && (
