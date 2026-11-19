@@ -12,12 +12,15 @@ export function TrimBar({
   duration,
   trim,
   currentTime,
+  removed = [],
   onChange,
   onSeek,
 }: {
   duration: number;
   trim: { start: number; end: number };
   currentTime: number;
+  /** ranges cut out by Remove silences / filler words, drawn as dark stripes */
+  removed?: { start: number; end: number }[];
   onChange: (trim: { start: number; end: number }) => void;
   onSeek: (t: number) => void;
 }) {
@@ -47,6 +50,18 @@ export function TrimBar({
           className="pointer-events-none absolute top-1/2 h-2 -translate-y-1/2 rounded-full bg-ember/70"
           style={{ left: `${startPct}%`, width: `${endPct - startPct}%` }}
         />
+        {removed.map((r, i) => (
+          <div
+            key={i}
+            title="Cut"
+            className="pointer-events-none absolute top-1/2 h-2 -translate-y-1/2 bg-ink"
+            style={{
+              left: `${(r.start / duration) * 100}%`,
+              width: `${((r.end - r.start) / duration) * 100}%`,
+              backgroundImage: "repeating-linear-gradient(45deg, rgba(255,255,255,0.35) 0 2px, transparent 2px 5px)",
+            }}
+          />
+        ))}
         <div
           className="pointer-events-none absolute top-0 h-8 w-0.5 bg-paper"
           style={{ left: `${playheadPct}%` }}

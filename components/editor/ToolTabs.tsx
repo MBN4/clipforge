@@ -1,6 +1,6 @@
 "use client";
 
-export type ToolKey = "trim" | "captions" | "reframe" | "text" | "stickers" | "filters" | "music";
+export type ToolKey = "trim" | "captions" | "reframe" | "text" | "stickers" | "filters" | "enhance" | "music";
 
 const TOOLS: { key: ToolKey; label: string }[] = [
   { key: "trim", label: "Trim" },
@@ -9,6 +9,7 @@ const TOOLS: { key: ToolKey; label: string }[] = [
   { key: "text", label: "Text" },
   { key: "stickers", label: "Stickers" },
   { key: "filters", label: "Filters" },
+  { key: "enhance", label: "Magic" },
   { key: "music", label: "Music" },
 ];
 

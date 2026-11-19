@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Transcribe audio to word-level timestamped JSON using faster-whisper.
-Usage: transcribe.py <audio_path> <out_json_path> [model_size]
+Usage: transcribe.py <audio_path> <out_json_path> [model_size] [language|auto] [transcribe|translate] [beam_size]
 Exits non-zero and prints an error to stderr if the model cannot be loaded
 (e.g. no network to fetch weights) so the caller can fall back gracefully.
 """
@@ -17,6 +17,12 @@ def main():
     audio_path = sys.argv[1]
     out_path = sys.argv[2]
     model_size = sys.argv[3] if len(sys.argv) > 3 else "base"
+    language = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4] != "auto" else None
+    task = sys.argv[5] if len(sys.argv) > 5 and sys.argv[5] in ("transcribe", "translate") else "transcribe"
+    try:
+        beam_size = max(1, min(8, int(sys.argv[6]))) if len(sys.argv) > 6 else 1
+    except ValueError:
+        beam_size = 1
 
     try:
         from faster_whisper import WhisperModel
@@ -40,7 +46,9 @@ def main():
             audio_path,
             word_timestamps=True,
             vad_filter=True,
-            beam_size=1,
+            language=language,
+            task=task,
+            beam_size=beam_size,
             condition_on_previous_text=False,
         )
 

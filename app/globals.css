@@ -413,6 +413,19 @@ html {
 @font-face { font-family: "Luckiest Guy"; src: url("/fonts/LuckiestGuy-Regular.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
 @font-face { font-family: "Bangers"; src: url("/fonts/Bangers-Regular.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
 @font-face { font-family: "Permanent Marker"; src: url("/fonts/PermanentMarker-Regular.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Poppins Black"; src: url("/fonts/Poppins-Black.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Poppins Bold"; src: url("/fonts/Poppins-Bold.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Russo One"; src: url("/fonts/RussoOne-Regular.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Bowlby One"; src: url("/fonts/BowlbyOne-Regular.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Lilita One"; src: url("/fonts/LilitaOne-Regular.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Titan One"; src: url("/fonts/TitanOne-Regular.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Bungee"; src: url("/fonts/Bungee-Regular.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Righteous"; src: url("/fonts/Righteous-Regular.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Abril Fatface"; src: url("/fonts/AbrilFatface-Regular.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Caveat Brush"; src: url("/fonts/CaveatBrush-Regular.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Pacifico"; src: url("/fonts/Pacifico-Regular.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Press Start 2P"; src: url("/fonts/PressStart2P-Regular.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Black Ops One"; src: url("/fonts/BlackOpsOne-Regular.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
 
 /* Page loader */
 .loader-glow {

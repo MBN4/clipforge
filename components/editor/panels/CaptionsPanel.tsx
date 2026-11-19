@@ -10,7 +10,24 @@ import {
   type CaptionChunk,
   type CaptionStyle,
 } from "@/lib/captions";
-import { CAPTION_FONT_LIST, captionFontCss, getCaptionFont } from "@/lib/captionFonts";
+import { CAPTION_FONT_GROUPS, CAPTION_FONT_LIST, captionFontCss, getCaptionFont } from "@/lib/captionFonts";
+
+export interface CaptionGenState {
+  busy: boolean;
+  error: string | null;
+  /** "whisper_missing" -> offer the one-click install */
+  code: string | null;
+  installing: boolean;
+  onGenerate: (opts: { language: string; translate: boolean; quality: "fast" | "accurate" }) => void;
+  onInstall: () => void;
+}
+
+const LANGUAGES: [string, string][] = [
+  ["auto", "Auto-detect"], ["en", "English"], ["es", "Spanish"], ["fr", "French"], ["de", "German"], ["pt", "Portuguese"],
+  ["it", "Italian"], ["nl", "Dutch"], ["pl", "Polish"], ["tr", "Turkish"], ["ru", "Russian"], ["ar", "Arabic"],
+  ["fa", "Persian"], ["ur", "Urdu"], ["hi", "Hindi"], ["bn", "Bengali"], ["id", "Indonesian"], ["ja", "Japanese"],
+  ["ko", "Korean"], ["zh", "Chinese"],
+];
 
 const POSITIONS: { label: string; y: number }[] = [
   { label: "Top", y: 0.2 },
@@ -135,7 +152,10 @@ function PresetTile({ name, style, active, onClick }: { name: string; style: Cap
         style={{
           fontFamily: captionFontCss(font.family),
           fontWeight: font.cssWeight,
-          fontSize: 34 * font.cssScale,
+          // sized like the real caption would look, clamped so every face fits the tile
+          fontSize: Math.min(26, Math.max(14, style.fontSize * font.cssScale * 0.36)) * (font.tileFit ?? 1),
+          maxWidth: "100%",
+          overflow: "hidden",
           color: style.textColor,
           letterSpacing: style.letterSpacing * 0.2,
           WebkitTextStroke: !box && style.outlineWidth > 0 ? `${Math.min(3, style.outlineWidth * 0.35)}px ${style.outlineColor}` : undefined,
@@ -143,10 +163,11 @@ function PresetTile({ name, style, active, onClick }: { name: string; style: Cap
           background: style.background && !box ? style.backgroundColor : undefined,
         }}
       >
-        {a}&nbsp;
+        <span style={{ opacity: style.wordEffect === "spotlight" ? 0.45 : undefined }}>{a}</span>&nbsp;
         <span
           style={{
-            color: style.wordEffect === "none" || box ? undefined : style.highlightColor,
+            color: style.wordEffect === "none" ? (style.emphasis ? style.emphasisColor : undefined) : box ? undefined : style.highlightColor,
+            textDecoration: style.wordEffect === "underline" ? "underline" : undefined,
             background: box ? style.highlightColor : undefined,
             padding: box ? "0 3px" : undefined,
             textShadow: style.wordEffect === "glow" ? `0 0 8px ${style.highlightColor}` : undefined,
@@ -170,6 +191,7 @@ export function CaptionsPanel({
   wordsPerCaption,
   onRegroup,
   canRegroup,
+  gen,
 }: {
   enabled: boolean;
   onToggle: (v: boolean) => void;
@@ -180,7 +202,11 @@ export function CaptionsPanel({
   wordsPerCaption: number;
   onRegroup: (n: number) => void;
   canRegroup: boolean;
+  gen: CaptionGenState;
 }) {
+  const [language, setLanguage] = useState("auto");
+  const [translate, setTranslate] = useState(false);
+  const [quality, setQuality] = useState<"fast" | "accurate">("fast");
   function set<K extends keyof CaptionStyle>(key: K, value: CaptionStyle[K]) {
     onChangeStyle({ ...style, [key]: value });
   }
@@ -228,6 +254,76 @@ export function CaptionsPanel({
 
       {enabled && (
         <>
+          <Section title="Auto captions">
+            <p className="text-[11px] leading-snug text-paper-dim">
+              {canRegroup
+                ? "Captions came from the speech in this clip. Re-run to fix mistakes or change language."
+                : "Transcribe the speech in this clip into word-timed, animated captions."}
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="text-[11px] text-paper-dim">Spoken language</span>
+                <select
+                  value={language}
+                  onChange={(e) => setLanguage(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-line-strong bg-ink-3 px-2 py-1.5 text-xs text-paper"
+                >
+                  {LANGUAGES.map(([code, name]) => (
+                    <option key={code} value={code}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div>
+                <span className="text-[11px] text-paper-dim">Accuracy</span>
+                <div className="mt-1 inline-flex w-full rounded-lg border border-line-strong bg-ink-3 p-0.5">
+                  {(["fast", "accurate"] as const).map((q) => (
+                    <button
+                      key={q}
+                      onClick={() => setQuality(q)}
+                      className={`flex-1 rounded-md px-2 py-1 text-[11px] font-semibold capitalize transition ${
+                        quality === q ? "bg-paper text-ink" : "text-paper-dim"
+                      }`}
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <label className="flex items-center justify-between">
+              <span className="text-[11px] text-paper-dim">Translate to English</span>
+              <input type="checkbox" checked={translate} onChange={(e) => setTranslate(e.target.checked)} className="accent-ember" />
+            </label>
+            <button
+              onClick={() => gen.onGenerate({ language, translate, quality })}
+              disabled={gen.busy}
+              className="w-full rounded-full bg-ember py-2 text-xs font-semibold text-ink transition hover:brightness-110 disabled:opacity-60"
+            >
+              {gen.busy ? "Transcribing… this can take a minute" : canRegroup ? "Re-generate captions" : "✨ Auto-generate captions"}
+            </button>
+            {gen.error && (
+              <div className="rounded-lg border border-ember/40 bg-ember/10 p-2.5">
+                <p className="text-[11px] text-ember">{gen.error}</p>
+                {gen.code === "whisper_missing" && (
+                  <>
+                    <button
+                      onClick={gen.onInstall}
+                      disabled={gen.installing}
+                      className="mt-2 rounded-full bg-ember px-3 py-1.5 text-[11px] font-semibold text-ink disabled:opacity-60"
+                    >
+                      {gen.installing ? "Installing… (a few minutes)" : "Install speech-to-text"}
+                    </button>
+                    <p className="mt-1.5 text-[11px] text-paper-dim">
+                      Runs <code className="text-paper">pip install faster-whisper</code>. The first caption run then downloads a speech model (~150 MB).
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
+          </Section>
+
           <Section title="Style presets">
             <div className="grid grid-cols-3 gap-2">
               {presetStyles.map((p) => (
@@ -252,25 +348,48 @@ export function CaptionsPanel({
               <Chips options={WORD_EFFECTS} value={style.wordEffect} onChange={(v) => set("wordEffect", v)} />
               <p className="text-[11px] text-paper-dim/80">{WORD_EFFECTS.find((e) => e.key === style.wordEffect)?.hint}</p>
             </div>
+            <label className="flex items-start justify-between gap-3">
+              <span>
+                <span className="block text-[11px] text-paper">Auto-emphasize key words</span>
+                <span className="block text-[11px] text-paper-dim/80">Numbers, money and impact words get their own colour</span>
+              </span>
+              <input
+                type="checkbox"
+                checked={style.emphasis}
+                onChange={(e) => set("emphasis", e.target.checked)}
+                className="mt-1 accent-ember"
+              />
+            </label>
+            {style.emphasis && <ColorField label="Emphasis color" value={style.emphasisColor} onChange={(v) => set("emphasisColor", v)} />}
           </Section>
 
           <Section title="Text">
-            <label className="block">
+            <div>
               <span className="text-[11px] text-paper-dim">Font</span>
-              <select
-                value={style.fontFamily}
-                onChange={(e) => set("fontFamily", e.target.value)}
-                className="mt-1 w-full rounded-lg border border-line-strong bg-ink-3 px-2 py-1.5 text-sm text-paper"
-                style={{ fontFamily: captionFontCss(style.fontFamily) }}
-              >
-                {CAPTION_FONT_LIST.map((f) => (
-                  <option key={f.family} value={f.family} style={{ fontFamily: captionFontCss(f.family) }}>
-                    {f.label}
-                  </option>
+              <div className="mt-1 max-h-60 space-y-2.5 overflow-y-auto rounded-lg border border-line-strong bg-ink-3 p-2">
+                {CAPTION_FONT_GROUPS.map((g) => (
+                  <div key={g}>
+                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-paper-dim/70">{g}</p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {CAPTION_FONT_LIST.filter((f) => f.group === g).map((f) => (
+                        <button
+                          key={f.family}
+                          onClick={() => set("fontFamily", f.family)}
+                          title={f.label}
+                          className={`truncate rounded-md border px-2 py-1.5 text-left text-[15px] leading-tight transition ${
+                            style.fontFamily === f.family ? "border-ember bg-ember/10 text-paper" : "border-transparent bg-ink-2 text-paper-dim hover:text-paper"
+                          }`}
+                          style={{ fontFamily: captionFontCss(f.family), fontWeight: f.cssWeight }}
+                        >
+                          {f.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 ))}
-              </select>
-            </label>
-            <Slider label="Size" value={style.fontSize} min={40} max={160} onChange={(v) => set("fontSize", v)} />
+              </div>
+            </div>
+            <Slider label="Size" value={style.fontSize} min={40} max={240} onChange={(v) => set("fontSize", v)} />
             <Slider
               label="Letter spacing"
               value={style.letterSpacing}
