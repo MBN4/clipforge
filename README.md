@@ -121,6 +121,20 @@ video's most-watched 30 minutes (YouTube's "most replayed" graph). Recordings wi
 which is common for streams, start from the beginning. Failed downloads now say why (private,
 age-restricted, bot check, stream not ended…).
 
+### Very long videos: clipped automatically in parts
+
+For a link longer than 2 hours (a 9-hour stream recording, say), the New project page defaults to
+**Clip it all, in parts**. Clipforge clips the first 30 minutes, then starts the next 30 minutes
+by itself, and so on. After every **2 hours** of footage it pauses, notifies you (toast, sound and a
+browser notification) and asks whether to **continue with the next 2 hours**, **skip a stretch of
+the video** (e.g. 1:25:00 to 2:30:00), or **stop**. You can also press "Stop after this part" on any
+running part's card; a stopped video waits on the Queue page until you continue it. Each part is an
+ordinary job, so its clips land in the Library with a "Clipped 1:00:00–1:30:00" badge. If a part fails,
+the chain pauses; Retry it and the rest follows.
+
+Part and batch length can be tuned with `CLIPFORGE_SERIES_PART_SEC` (default 1800) and
+`CLIPFORGE_SERIES_BATCH_SEC` (default 7200). The logic lives in `lib/series.ts`.
+
 ## Library
 
 Tick clips on a clip card (or **Select all**) to **Delete** them or **Add captions** in bulk.

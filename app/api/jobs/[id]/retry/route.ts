@@ -5,6 +5,7 @@ import { getJob, updateJob } from "@/lib/store";
 import { isRunning } from "@/lib/scheduler";
 import { jobDir, clipsDir } from "@/lib/paths";
 import { runPipeline } from "@/lib/pipeline";
+import { updateSeries } from "@/lib/series";
 
 /** Re-run a failed or cancelled video with the same settings. */
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -43,6 +44,8 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     waiting: false,
     createdAt: Date.now(), // goes to the back of the line
   });
+  // retrying a part of a long video puts its series back on track (the next part follows when it's done)
+  if (job.series) updateSeries(job.series.id, { status: "running", pausedFor: undefined });
   const { clipCount, range, mode } = job.request ?? {};
   runPipeline(id, sourceUrl, uploadedPath, clipCount, range, mode).catch((e) => console.error("pipeline crash", e));
   return NextResponse.json({ ok: true });

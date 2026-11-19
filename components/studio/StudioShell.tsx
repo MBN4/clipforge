@@ -10,6 +10,7 @@ import { DashboardProvider, useDashboard } from "./DashboardProvider";
 import { isActive } from "@/lib/dashboard";
 import { Label } from "./ui";
 import { SystemBanner } from "./SystemBanner";
+import { SeriesPrompts } from "./SeriesControls";
 
 const NAV: { href: string; label: string; icon: LucideIcon; badge?: "queue" | "clips" }[] = [
   { href: "/studio", label: "Overview", icon: LayoutDashboard },
@@ -167,6 +168,7 @@ export function StudioShell({ children }: { children: React.ReactNode }) {
           <MobileBars />
           <main className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-28 pt-8 sm:px-6 lg:px-10 lg:pb-16 lg:pt-12">
             <SystemBanner />
+            <SeriesPrompts />
             {children}
           </main>
         </div>
