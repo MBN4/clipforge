@@ -42,9 +42,9 @@ function Toggle({ label, hint, checked, onChange }: { label: string; hint?: stri
         role="switch"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={`mt-0.5 h-5 w-9 shrink-0 rounded-full transition ${checked ? "bg-ember" : "bg-ink-3"}`}
+        className={`relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition-colors ${checked ? "bg-ember" : "bg-ink-3"}`}
       >
-        <span className={`block h-4 w-4 translate-y-0.5 rounded-full bg-paper transition ${checked ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+        <span className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-paper shadow transition-transform ${checked ? "translate-x-4" : "translate-x-0"}`} />
       </button>
     </label>
   );

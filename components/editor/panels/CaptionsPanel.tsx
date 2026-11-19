@@ -241,12 +241,14 @@ export function CaptionsPanel({
         </div>
         <button
           onClick={() => onToggle(!enabled)}
+          role="switch"
+          aria-checked={enabled}
           aria-label="Toggle captions"
-          className={`h-6 w-11 shrink-0 rounded-full transition ${enabled ? "bg-ember" : "bg-ink-3"}`}
+          className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${enabled ? "bg-ember" : "bg-ink-3"}`}
         >
           <span
-            className={`block h-5 w-5 translate-y-0.5 rounded-full bg-paper transition ${
-              enabled ? "translate-x-5" : "translate-x-0.5"
+            className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-paper shadow transition-transform ${
+              enabled ? "translate-x-5" : "translate-x-0"
             }`}
           />
         </button>

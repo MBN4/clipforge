@@ -8,7 +8,7 @@ import type { Transcript, TranscriptSegment, Word } from "./types";
 
 function runPython(args: string[]): Promise<{ code: number; stderr: string }> {
   return new Promise((resolve) => {
-    const child = spawn(resolvePython(), args, { stdio: ["ignore", "ignore", "pipe"], detached: process.platform !== "win32", windowsHide: true });
+    const child = spawn(/* turbopackIgnore: true */ resolvePython(), args, { stdio: ["ignore", "ignore", "pipe"], detached: process.platform !== "win32", windowsHide: true });
     trackChild(child);
     let stderr = "";
     child.stderr.on("data", (d) => (stderr += d.toString()));

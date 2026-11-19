@@ -3,7 +3,7 @@
 import { useRef } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Download, Pencil, Star } from "lucide-react";
+import { Check, Download, Pencil, Star } from "lucide-react";
 import type { ClientClip } from "@/lib/serialize";
 
 function fmt(s: number) {
@@ -12,7 +12,22 @@ function fmt(s: number) {
   return `${m}:${String(sec).padStart(2, "0")}`;
 }
 
-export function ClipCard({ clip, index, jobId, videoTitle }: { clip: ClientClip; index: number; jobId: string; videoTitle?: string }) {
+export function ClipCard({
+  clip,
+  index,
+  jobId,
+  videoTitle,
+  selected = false,
+  onToggle,
+}: {
+  clip: ClientClip;
+  index: number;
+  jobId: string;
+  videoTitle?: string;
+  selected?: boolean;
+  /** when given, the card shows a selection checkbox */
+  onToggle?: () => void;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   return (
@@ -21,7 +36,7 @@ export function ClipCard({ clip, index, jobId, videoTitle }: { clip: ClientClip;
       initial={{ opacity: 0, y: 18 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: Math.min(index, 8) * 0.04 }}
-      className="group overflow-hidden rounded-2xl border border-line-strong bg-ink-2 transition-colors hover:border-white/25"
+      className={`group overflow-hidden rounded-2xl border bg-ink-2 transition-colors ${selected ? "border-ember ring-1 ring-ember" : "border-line-strong hover:border-white/25"}`}
     >
       <div
         className="relative aspect-[9/16] cursor-pointer overflow-hidden bg-ink-3"
@@ -37,6 +52,23 @@ export function ClipCard({ clip, index, jobId, videoTitle }: { clip: ClientClip;
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/70 to-transparent" />
         <div className="pointer-events-none absolute right-2 top-2 rounded-full bg-ink/70 px-2 py-1 font-mono text-[10px] text-paper backdrop-blur">{fmt(clip.duration)}</div>
         <div className="pointer-events-none absolute left-2 top-2 rounded-full bg-ember px-2 py-1 font-mono text-[10px] font-semibold text-ink">#{clip.index + 1}</div>
+        {onToggle && (
+          <button
+            type="button"
+            role="checkbox"
+            aria-checked={selected}
+            aria-label={selected ? "Deselect clip" : "Select clip"}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle();
+            }}
+            className={`absolute bottom-2 right-2 flex h-6 w-6 items-center justify-center rounded-md border transition ${
+              selected ? "border-ember bg-ember text-ink" : "border-white/60 bg-black/50 text-transparent hover:border-white"
+            }`}
+          >
+            <Check className="h-4 w-4" strokeWidth={3} />
+          </button>
+        )}
         {clip.score > 0 && (
           <div className="pointer-events-none absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-black/55 px-2 py-1 font-mono text-[10px] text-moss backdrop-blur">
             <Star className="h-3 w-3 fill-current" /> {clip.score.toFixed(1)}

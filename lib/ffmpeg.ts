@@ -51,7 +51,7 @@ function dirBytes(dir: string): number {
 
 export function run(cmd: string, args: string[], opts: RunOptions = {}): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(resolveBin(cmd), args, { stdio: ["ignore", "pipe", "pipe"], detached: process.platform !== "win32", windowsHide: true });
+    const child = spawn(/* turbopackIgnore: true */ resolveBin(cmd), args, { stdio: ["ignore", "pipe", "pipe"], detached: process.platform !== "win32", windowsHide: true });
     trackChild(child);
     let stdout = "";
     let stderr = "";
