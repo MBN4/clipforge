@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { Check } from "lucide-react";
 import { AnimatePresence, motion, useInView, useReducedMotion } from "framer-motion";
-import { CAPTION_PRESETS, DEFAULT_CAPTION_STYLE, type CaptionStyle } from "@/lib/captions";
+import { CAPTION_PRESETS, DEFAULT_CAPTION_STYLE, isKeyWord, mixHex, type CaptionStyle } from "@/lib/captions";
 import { captionFontCss, getCaptionFont } from "@/lib/captionFonts";
 import { DEFAULT_SITE_FONT_LABEL, readSiteFont, setSiteFont, subscribeSiteFont } from "@/lib/siteFont";
 import { Scene } from "./Scene";
@@ -32,6 +32,10 @@ const ENTRANCE: Record<CaptionStyle["animation"], { initial: Record<string, numb
   slide: { initial: { opacity: 0, y: 30 }, animate: { opacity: 1, y: 0 } },
   zoom: { initial: { opacity: 0, scale: 1.7 }, animate: { opacity: 1, scale: 1 } },
   swing: { initial: { opacity: 0, rotate: -14 }, animate: { opacity: 1, rotate: 0 } },
+  drop: { initial: { opacity: 0, y: -50 }, animate: { opacity: 1, y: 0 } },
+  elastic: { initial: { opacity: 0, scale: 0.5 }, animate: { opacity: 1, scale: 1 } },
+  spin: { initial: { opacity: 0, rotate: -150, scale: 0.45 }, animate: { opacity: 1, rotate: 0, scale: 1 } },
+  shake: { initial: { opacity: 0, rotate: -6 }, animate: { opacity: 1, rotate: 0 } },
 };
 
 function hexA(hex: string, a: number) {
@@ -69,7 +73,7 @@ function Caption({ style, chunk, active }: { style: CaptionStyle; chunk: string[
       initial={ent.initial}
       animate={ent.animate}
       exit={{ opacity: 0, transition: { duration: 0.09 } }}
-      transition={style.animation === "bounce" ? { type: "spring", stiffness: 420, damping: 14 } : { duration: 0.28, ease: [0.2, 0.9, 0.3, 1.2] }}
+      transition={style.animation === "bounce" || style.animation === "elastic" ? { type: "spring", stiffness: 420, damping: 14 } : { duration: 0.28, ease: [0.2, 0.9, 0.3, 1.2] }}
       className="inline-block max-w-[88%] text-center"
       style={
         style.background
@@ -82,7 +86,13 @@ function Caption({ style, chunk, active }: { style: CaptionStyle; chunk: string[
         const past = i < active;
         const word = style.uppercase ? w.toUpperCase() : w;
         const s: CSSProperties = { ...base, display: "inline-block", padding: "0 0.12em", transition: "all 140ms ease-out" };
-        if ((eff === "highlight" || eff === "glow") && on) s.color = style.highlightColor;
+        if (style.emphasis && isKeyWord(w)) s.color = style.emphasisColor;
+        if (eff === "spotlight" && !on) s.color = mixHex(style.textColor, style.outlineColor, 0.58);
+        if ((eff === "highlight" || eff === "glow" || eff === "spotlight" || eff === "underline") && on) s.color = style.highlightColor;
+        if (eff === "underline" && on) {
+          s.textDecoration = "underline";
+          s.textUnderlineOffset = "0.1em";
+        }
         if (eff === "glow" && on) s.textShadow = `0 0 12px ${style.highlightColor}, 0 0 28px ${style.highlightColor}`;
         if (eff === "pop" && on) {
           s.color = style.highlightColor;

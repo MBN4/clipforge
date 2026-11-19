@@ -7,6 +7,8 @@ import { CaptionOverlay } from "./CaptionOverlay";
 import type { EditorState } from "@/app/editor/[jobId]/[clipIndex]/page";
 import type { TextOverlaySpec, StickerSpec, CropSpec } from "@/lib/types";
 import type { ToolKey } from "./ToolTabs";
+import type { Timeline } from "@/lib/timeline";
+import type { CaptionChunk } from "@/lib/captions";
 
 const BOX_WIDTH = 340;
 const BOX_HEIGHT = (BOX_WIDTH * 16) / 9;
@@ -24,6 +26,8 @@ export function PreviewStage({
   onUpdateSticker,
   onUpdateCaptionY,
   activeTool,
+  timeline,
+  chunks,
 }: {
   rawUrl: string;
   videoRef: RefObject<HTMLVideoElement | null>;
@@ -37,6 +41,9 @@ export function PreviewStage({
   onUpdateSticker: (id: string, patch: Partial<StickerSpec>) => void;
   onUpdateCaptionY: (y: number) => void;
   activeTool: ToolKey;
+  timeline: Timeline;
+  /** caption chunks to show (cut words already removed) */
+  chunks: CaptionChunk[];
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const dragState = useRef<{ x: number; y: number } | null>(null);
@@ -62,6 +69,31 @@ export function PreviewStage({
     return () => v.removeEventListener("timeupdate", onTime);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.trim.start, state.trim.end]);
+
+  // playback speed
+  useEffect(() => {
+    const v = videoRef.current;
+    if (v) v.playbackRate = state.speed;
+  }, [state.speed, videoRef]);
+
+  // jump over removed ranges (silences / filler words) and loop inside the trim, every frame
+  useEffect(() => {
+    let raf = 0;
+    const tick = () => {
+      const v = videoRef.current;
+      if (v && !v.paused) {
+        if (v.currentTime >= state.trim.end - 0.02) {
+          v.currentTime = state.trim.start;
+        } else {
+          const to = timeline.skipTo(v.currentTime);
+          if (to !== null) v.currentTime = to >= state.trim.end - 0.02 ? state.trim.start : to;
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [timeline, state.trim.start, state.trim.end, videoRef]);
 
   function onPanStart(e: React.PointerEvent) {
     if (activeTool !== "reframe") return;
@@ -89,6 +121,12 @@ export function PreviewStage({
   }
 
   const scale = BOX_WIDTH / 1080;
+  const fit = state.layout === "fit";
+  const f = state.filters;
+  const warmth = f.warmth ?? 0;
+  const vignette = f.vignette ?? 0;
+  const pb = state.polish.progressBar;
+  const progress = Math.min(1, Math.max(0, timeline.map(currentTime) / timeline.duration));
 
   return (
     <div className="flex flex-col items-center gap-3">
@@ -101,44 +139,78 @@ export function PreviewStage({
         onPointerUp={onPanEnd}
         onPointerLeave={onPanEnd}
       >
-        <video
-          ref={videoRef}
-          src={rawUrl}
-          muted
-          playsInline
-          className="absolute inset-0 h-full w-full"
-          style={{
-            objectFit: "cover",
-            objectPosition: `${state.crop.x * 100}% ${state.crop.y * 100}%`,
-            transform: `scale(${state.crop.zoom})`,
-            transformOrigin: `${state.crop.x * 100}% ${state.crop.y * 100}%`,
-          }}
-          onLoadedMetadata={() => {
-            if (videoRef.current) videoRef.current.currentTime = state.trim.start;
-          }}
-        />
-
-        {/* color filter preview */}
+        {/* picture layers + colour grade (the filter wraps everything ffmpeg grades) */}
         <div
           className="pointer-events-none absolute inset-0"
           style={{
-            filter: `brightness(${1 + state.filters.brightness}) contrast(${1 + state.filters.contrast}) saturate(${
-              1 + state.filters.saturation
-            })`,
+            filter: `brightness(${1 + f.brightness}) contrast(${1 + f.contrast}) saturate(${1 + f.saturation})`,
           }}
-        />
+        >
+          {fit && <BlurBackdrop src={rawUrl} mainRef={videoRef} speed={state.speed} playing={playing} />}
+          <video
+            ref={videoRef}
+            src={rawUrl}
+            muted
+            playsInline
+            className="absolute inset-0 h-full w-full"
+            style={
+              fit
+                ? { objectFit: "contain" }
+                : {
+                    objectFit: "cover",
+                    objectPosition: `${state.crop.x * 100}% ${state.crop.y * 100}%`,
+                    transform: `scale(${state.crop.zoom})`,
+                    transformOrigin: `${state.crop.x * 100}% ${state.crop.y * 100}%`,
+                  }
+            }
+            onLoadedMetadata={() => {
+              if (videoRef.current) {
+                videoRef.current.currentTime = state.trim.start;
+                videoRef.current.playbackRate = state.speed;
+              }
+            }}
+          />
+          {Math.abs(warmth) > 0.01 && (
+            <div
+              className="absolute inset-0"
+              style={{
+                mixBlendMode: "soft-light",
+                background: warmth > 0 ? `rgba(255,140,20,${warmth * 0.55})` : `rgba(40,120,255,${-warmth * 0.55})`,
+              }}
+            />
+          )}
+          {vignette > 0.01 && (
+            <div
+              className="absolute inset-0"
+              style={{ background: `radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,${vignette * 0.85}) 100%)` }}
+            />
+          )}
+        </div>
 
         {/* captions (animated; mirrors the libass export) */}
         {state.captionsEnabled && (
           <CaptionOverlay
             videoRef={videoRef}
             fallbackTime={currentTime}
-            chunks={state.captionChunks}
+            chunks={chunks}
             style={state.captionStyle}
             scale={scale}
             stageHeight={BOX_HEIGHT}
             draggable={activeTool === "captions"}
             onChangePositionY={onUpdateCaptionY}
+          />
+        )}
+
+        {/* progress bar */}
+        {pb.enabled && (
+          <div
+            className="pointer-events-none absolute left-0"
+            style={{
+              [pb.position === "top" ? "top" : "bottom"]: 0,
+              height: pb.height * scale,
+              width: `${progress * 100}%`,
+              background: pb.color,
+            }}
           />
         )}
 
@@ -219,5 +291,53 @@ export function PreviewStage({
         )}
       </button>
     </div>
+  );
+}
+
+/** The blurred, zoomed copy of the video that fills the frame behind a "fit" layout. It's a second
+ * <video> kept in step with the main one. */
+function BlurBackdrop({
+  src,
+  mainRef,
+  speed,
+  playing,
+}: {
+  src: string;
+  mainRef: RefObject<HTMLVideoElement | null>;
+  speed: number;
+  playing: boolean;
+}) {
+  const ref = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const v = ref.current;
+    if (!v) return;
+    v.playbackRate = speed;
+    if (playing) v.play().catch(() => {});
+    else v.pause();
+  }, [playing, speed]);
+
+  useEffect(() => {
+    let raf = 0;
+    const tick = () => {
+      const bg = ref.current;
+      const main = mainRef.current;
+      if (bg && main && Math.abs(bg.currentTime - main.currentTime) > 0.12) bg.currentTime = main.currentTime;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [mainRef]);
+
+  return (
+    <video
+      ref={ref}
+      src={src}
+      muted
+      playsInline
+      aria-hidden
+      className="absolute inset-0 h-full w-full"
+      style={{ objectFit: "cover", transform: "scale(1.25)", filter: "blur(22px) brightness(0.9) saturate(1.2)" }}
+    />
   );
 }

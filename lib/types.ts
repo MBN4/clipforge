@@ -123,7 +123,42 @@ export interface FilterSpec {
   brightness: number; // -1..1
   contrast: number; // -1..1 (mapped to ffmpeg's 0..2 range)
   saturation: number; // -1..1 (mapped to ffmpeg's 0..3 range)
+  /** -1 (cool/blue) .. 1 (warm/orange). Optional so older saved edits still load. */
+  warmth?: number;
+  /** 0 (off) .. 1 (strong) edge darkening. */
+  vignette?: number;
+  /** 0 (off) .. 1 sharpening. */
+  sharpen?: number;
 }
+
+export interface TimeRange {
+  start: number;
+  end: number;
+}
+
+/** Audio clean-up applied to the clip's own sound. */
+export interface AudioSpec {
+  /** high-pass + FFT noise reduction */
+  denoise: boolean;
+  /** EBU R128 loudness normalisation (-16 LUFS, the short-form standard) */
+  normalize: boolean;
+}
+
+export interface ProgressBarSpec {
+  enabled: boolean;
+  color: string; // "#rrggbb"
+  position: "top" | "bottom";
+  height: number; // px at 1080 width
+}
+
+export interface PolishSpec {
+  fadeIn: number; // seconds, 0 = off
+  fadeOut: number; // seconds, 0 = off
+  progressBar: ProgressBarSpec;
+}
+
+/** "fill" crops to 9:16; "fit" shows the whole frame over a blurred copy of itself. */
+export type LayoutMode = "fill" | "fit";
 
 export interface MusicSpec {
   path: string;
@@ -145,4 +180,11 @@ export interface ExportSpec {
   stickers: StickerSpec[];
   filters: FilterSpec;
   music: MusicSpec | null;
+  /** Ranges (source time) to cut out, e.g. silences and filler words. */
+  removed?: TimeRange[];
+  /** Playback speed, 0.5..2. */
+  speed?: number;
+  audio?: AudioSpec;
+  polish?: PolishSpec;
+  layout?: LayoutMode;
 }

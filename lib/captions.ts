@@ -21,8 +21,10 @@ export interface CaptionChunk {
   words?: Word[];
 }
 
-export type CaptionAnimation = "none" | "fade" | "pop" | "bounce" | "slide" | "zoom" | "swing";
-export type WordEffect = "none" | "highlight" | "pop" | "karaoke" | "box" | "reveal" | "glow";
+export type CaptionAnimation =
+  | "none" | "fade" | "pop" | "bounce" | "slide" | "zoom" | "swing" | "drop" | "elastic" | "spin" | "shake";
+export type WordEffect =
+  | "none" | "highlight" | "pop" | "karaoke" | "box" | "reveal" | "glow" | "underline" | "spotlight";
 
 export interface CaptionStyle {
   fontFamily: string;
@@ -45,6 +47,10 @@ export interface CaptionStyle {
   positionY: number;
   animation: CaptionAnimation;
   wordEffect: WordEffect;
+  /** Auto-emphasis: key words (numbers, long/impactful words) are coloured
+   * with emphasisColor even when they aren't the word being spoken. */
+  emphasis: boolean;
+  emphasisColor: string;
 }
 
 export const CAPTION_ANIMATIONS: { key: CaptionAnimation; label: string }[] = [
@@ -55,6 +61,10 @@ export const CAPTION_ANIMATIONS: { key: CaptionAnimation; label: string }[] = [
   { key: "slide", label: "Slide up" },
   { key: "zoom", label: "Zoom in" },
   { key: "swing", label: "Swing" },
+  { key: "drop", label: "Drop in" },
+  { key: "elastic", label: "Elastic" },
+  { key: "spin", label: "Spin in" },
+  { key: "shake", label: "Shake" },
 ];
 
 export const WORD_EFFECTS: { key: WordEffect; label: string; hint: string }[] = [
@@ -65,6 +75,8 @@ export const WORD_EFFECTS: { key: WordEffect; label: string; hint: string }[] = 
   { key: "box", label: "Word box", hint: "Coloured box behind the spoken word" },
   { key: "reveal", label: "Reveal", hint: "Words appear as they're spoken" },
   { key: "glow", label: "Glow", hint: "Spoken word glows" },
+  { key: "underline", label: "Underline", hint: "Spoken word is coloured and underlined" },
+  { key: "spotlight", label: "Spotlight", hint: "Other words dim; the spoken word stays bright" },
 ];
 
 export const DEFAULT_CAPTION_STYLE: CaptionStyle = {
@@ -85,6 +97,8 @@ export const DEFAULT_CAPTION_STYLE: CaptionStyle = {
   positionY: 0.72,
   animation: "pop",
   wordEffect: "highlight",
+  emphasis: false,
+  emphasisColor: "#19e68c",
 };
 
 export interface CaptionPreset {
@@ -169,11 +183,123 @@ export const CAPTION_PRESETS: CaptionPreset[] = [
       backgroundColor: "#111111", backgroundOpacity: 0.7, animation: "fade", wordEffect: "none", letterSpacing: 0,
     },
   },
+  {
+    id: "viral",
+    name: "Viral",
+    style: {
+      fontSize: 94, fontFamily: "Poppins Black", uppercase: true, textColor: "#ffffff", highlightColor: "#00e676",
+      outlineColor: "#000000", outlineWidth: 9, shadowColor: "#000000", shadowDepth: 5, shadowOpacity: 0.7,
+      background: false, animation: "elastic", wordEffect: "pop", letterSpacing: 0,
+      emphasis: true, emphasisColor: "#ffd21f",
+    },
+  },
+  {
+    id: "money",
+    name: "Money",
+    style: {
+      fontSize: 122, fontFamily: "Anton", uppercase: true, textColor: "#ffffff", highlightColor: "#ffffff",
+      outlineColor: "#000000", outlineWidth: 9, shadowDepth: 4, shadowOpacity: 0.6, background: false,
+      animation: "pop", wordEffect: "none", letterSpacing: 1, emphasis: true, emphasisColor: "#3ddc84",
+    },
+  },
+  {
+    id: "focus",
+    name: "Focus",
+    style: {
+      fontSize: 88, fontFamily: "Poppins Black", uppercase: true, textColor: "#ffffff", highlightColor: "#ffe14d",
+      outlineColor: "#000000", outlineWidth: 7, shadowDepth: 3, shadowOpacity: 0.6, background: false,
+      animation: "fade", wordEffect: "spotlight", letterSpacing: 0,
+    },
+  },
+  {
+    id: "arcade",
+    name: "Arcade",
+    style: {
+      fontSize: 70, fontFamily: "Press Start 2P", uppercase: true, textColor: "#ffffff", highlightColor: "#ff2bd6",
+      outlineColor: "#1b0050", outlineWidth: 6, shadowColor: "#00e5ff", shadowDepth: 5, shadowOpacity: 1,
+      background: false, animation: "shake", wordEffect: "highlight", letterSpacing: 1,
+    },
+  },
+  {
+    id: "hype",
+    name: "Hype",
+    style: {
+      fontSize: 214, fontFamily: "Bungee", uppercase: true, textColor: "#ffffff", highlightColor: "#ff3b30",
+      outlineColor: "#000000", outlineWidth: 8, shadowColor: "#000000", shadowDepth: 6, shadowOpacity: 0.8,
+      background: false, animation: "drop", wordEffect: "highlight", letterSpacing: 0,
+    },
+  },
+  {
+    id: "boss",
+    name: "Boss",
+    style: {
+      fontSize: 118, fontFamily: "Bowlby One", uppercase: true, textColor: "#ffffff", highlightColor: "#ff3b30",
+      outlineColor: "#000000", outlineWidth: 6, shadowDepth: 0, background: false,
+      animation: "pop", wordEffect: "box", letterSpacing: 0,
+    },
+  },
+  {
+    id: "candy",
+    name: "Candy",
+    style: {
+      fontSize: 112, fontFamily: "Lilita One", uppercase: true, textColor: "#ffffff", highlightColor: "#ff5fa2",
+      outlineColor: "#7c1d4c", outlineWidth: 10, shadowColor: "#3a0a22", shadowDepth: 5, shadowOpacity: 0.8,
+      background: false, animation: "spin", wordEffect: "pop", letterSpacing: 1,
+    },
+  },
+  {
+    id: "titan",
+    name: "Titan",
+    style: {
+      fontSize: 104, fontFamily: "Titan One", uppercase: true, textColor: "#ffffff", highlightColor: "#ffb300",
+      outlineColor: "#5b1f8c", outlineWidth: 11, shadowColor: "#2a0a45", shadowDepth: 6, shadowOpacity: 0.9,
+      background: false, animation: "bounce", wordEffect: "pop", letterSpacing: 1,
+    },
+  },
+  {
+    id: "neonscript",
+    name: "Neon script",
+    style: {
+      fontSize: 158, fontFamily: "Pacifico", uppercase: false, textColor: "#ffffff", highlightColor: "#ff6ec7",
+      outlineColor: "#ff2bd6", outlineWidth: 3, shadowDepth: 0, background: false,
+      animation: "fade", wordEffect: "glow", letterSpacing: 0,
+    },
+  },
+  {
+    id: "cinema",
+    name: "Cinema",
+    style: {
+      fontSize: 96, fontFamily: "Abril Fatface", uppercase: false, textColor: "#fff4dc", highlightColor: "#ffd27a",
+      outlineColor: "#000000", outlineWidth: 2, shadowDepth: 4, shadowOpacity: 0.8, background: false,
+      animation: "fade", wordEffect: "reveal", letterSpacing: 1,
+    },
+  },
+  {
+    id: "sketch",
+    name: "Sketch",
+    style: {
+      fontSize: 126, fontFamily: "Caveat Brush", uppercase: false, textColor: "#ffffff", highlightColor: "#ff4e1f",
+      outlineColor: "#000000", outlineWidth: 6, shadowDepth: 3, shadowOpacity: 0.6, background: false,
+      animation: "slide", wordEffect: "underline", letterSpacing: 1,
+    },
+  },
+  {
+    id: "tech",
+    name: "Tech",
+    style: {
+      fontSize: 84, fontFamily: "Russo One", uppercase: true, textColor: "#e8fbff", highlightColor: "#25e2ff",
+      outlineColor: "#000000", outlineWidth: 0, shadowDepth: 0, background: true,
+      backgroundColor: "#06121a", backgroundOpacity: 0.78, animation: "slide", wordEffect: "underline", letterSpacing: 2,
+    },
+  },
 ];
 
 export function applyPreset(current: CaptionStyle, preset: CaptionPreset): CaptionStyle {
   return normalizeCaptionStyle({
     ...current,
+    // emphasis is opt-in per preset; don't let a previous look leak into the next
+    emphasis: false,
+    emphasisColor: DEFAULT_CAPTION_STYLE.emphasisColor,
     ...preset.style,
     positionY: current.positionY,
   });
@@ -204,7 +330,7 @@ export function normalizeCaptionStyle(input: unknown): CaptionStyle {
   const legacy = "color" in s && !("textColor" in s);
   return {
     fontFamily: isKnownCaptionFont(s.fontFamily) ? s.fontFamily : d.fontFamily,
-    fontSize: Math.round(num(s.fontSize, d.fontSize, 30, 180)),
+    fontSize: Math.round(num(s.fontSize, d.fontSize, 30, 240)),
     uppercase: typeof s.uppercase === "boolean" ? s.uppercase : d.uppercase,
     letterSpacing: num(s.letterSpacing, d.letterSpacing, -5, 30),
     textColor: color(legacy ? s.color : s.textColor, d.textColor),
@@ -223,6 +349,8 @@ export function normalizeCaptionStyle(input: unknown): CaptionStyle {
         : num(s.positionY, d.positionY, 0.05, 0.95),
     animation: ANIMS.has(s.animation as CaptionAnimation) ? (s.animation as CaptionAnimation) : d.animation,
     wordEffect: EFFECTS.has(s.wordEffect as WordEffect) ? (s.wordEffect as WordEffect) : d.wordEffect,
+    emphasis: typeof s.emphasis === "boolean" ? s.emphasis : d.emphasis,
+    emphasisColor: color(s.emphasisColor, d.emphasisColor),
   };
 }
 
@@ -290,11 +418,53 @@ export interface TimedWord {
   text: string;
   start: number;
   end: number;
+  /** Key word for auto-emphasis (decided on the text as typed, before UPPERCASE). */
+  key: boolean;
+}
+
+const HYPE_WORDS = new Set([
+  "never", "always", "free", "secret", "secrets", "money", "love", "hate", "best", "worst", "now", "stop", "crazy",
+  "insane", "million", "billion", "truth", "why", "how", "mistake", "mistakes", "win", "lose", "fail", "easy", "fast",
+  "huge", "biggest", "proven", "warning", "wrong", "real", "important", "powerful",
+]);
+
+/** Words worth emphasising: numbers/money, hype words, long (impactful) words, "shouted!" words. */
+export function isKeyWord(raw: string): boolean {
+  const letters = raw.replace(/[^\p{L}\p{N}]/gu, "");
+  if (!letters) return false;
+  if (/[0-9$€£%]/.test(raw)) return true;
+  if (HYPE_WORDS.has(letters.toLowerCase())) return true;
+  if (/!$/.test(raw) && letters.length >= 3) return true;
+  return letters.length >= 8;
+}
+
+/** Linear mix of two #rrggbb colours (k = share of b). Shared so the preview and ASS dim identically. */
+export function mixHex(a: string, b: string, k: number): string {
+  const pa = a.replace("#", "");
+  const pb = b.replace("#", "");
+  const ch = (i: number) => {
+    const x = parseInt(pa.slice(i, i + 2), 16);
+    const y = parseInt(pb.slice(i, i + 2), 16);
+    return Math.round(x + (y - x) * k)
+      .toString(16)
+      .padStart(2, "0");
+  };
+  return `#${ch(0)}${ch(2)}${ch(4)}`;
+}
+
+/** Colour of a word that isn't the one being spoken. */
+export function inactiveWordColor(style: CaptionStyle, w: { key: boolean }, anyActive: boolean): string {
+  const base = style.emphasis && w.key ? style.emphasisColor : style.textColor;
+  // spotlight fades every other word towards the outline colour (a colour mix, not an alpha, so it
+  // can't fight the entrance fade in either renderer)
+  return style.wordEffect === "spotlight" && anyActive ? mixHex(base, style.outlineColor, 0.58) : base;
 }
 
 /** Words of a chunk (as currently typed) with timings, clamped to the chunk. */
 export function chunkWordTimings(chunk: CaptionChunk, uppercase = false): TimedWord[] {
-  const tokens = chunk.text.split(/\s+/).filter(Boolean).map((t) => (uppercase ? t.toUpperCase() : t));
+  const rawTokens = chunk.text.split(/\s+/).filter(Boolean);
+  const keys = rawTokens.map(isKeyWord);
+  const tokens = rawTokens.map((t) => (uppercase ? t.toUpperCase() : t));
   if (!tokens.length) return [];
   const span = Math.max(0.01, chunk.end - chunk.start);
   const clamp = (t: number) => Math.min(chunk.end, Math.max(chunk.start, t));
@@ -302,7 +472,7 @@ export function chunkWordTimings(chunk: CaptionChunk, uppercase = false): TimedW
     return tokens.map((text, i) => {
       const w = chunk.words![i];
       const start = clamp(w.start);
-      return { text, start, end: Math.max(start, clamp(w.end)) };
+      return { text, start, end: Math.max(start, clamp(w.end)), key: keys[i] };
     });
   }
   // Text was edited (or no timings): spread words across the chunk,
@@ -312,10 +482,41 @@ export function chunkWordTimings(chunk: CaptionChunk, uppercase = false): TimedW
   let cursor = chunk.start;
   return tokens.map((text, i) => {
     const d = (weights[i] / total) * span;
-    const w = { text, start: cursor, end: cursor + d };
+    const w = { text, start: cursor, end: cursor + d, key: keys[i] };
     cursor += d;
     return w;
   });
+}
+
+/**
+ * Remove words that lie entirely inside a cut-out range (e.g. a filler "um" that was cut from the
+ * audio) so they don't linger in the caption text. Only touches chunks whose per-word timings still
+ * match their text; hand-edited chunks are left alone. Chunks left with no words are dropped.
+ */
+export function dropCutWords(chunks: CaptionChunk[], tl: { isRemoved(t: number): boolean }): CaptionChunk[] {
+  const out: CaptionChunk[] = [];
+  for (const c of chunks) {
+    const tokens = c.text.split(/\s+/).filter(Boolean);
+    if (!c.words || c.words.length !== tokens.length) {
+      out.push(c);
+      continue;
+    }
+    const keep = c.words.map((w) => !tl.isRemoved((w.start + w.end) / 2));
+    if (keep.every(Boolean)) {
+      out.push(c);
+      continue;
+    }
+    if (!keep.some(Boolean)) continue;
+    const words = c.words.filter((_, i) => keep[i]);
+    out.push({
+      ...c,
+      text: tokens.filter((_, i) => keep[i]).join(" "),
+      words,
+      start: Math.max(c.start, words[0].start),
+      end: Math.max(words[words.length - 1].end, Math.min(c.end, words[words.length - 1].end + 0.05)),
+    });
+  }
+  return out;
 }
 
 /** Index of the word "currently being said" — it stays active until the next
@@ -350,6 +551,11 @@ export const ENTRANCE_KEYFRAMES: Record<CaptionAnimation, Keyframe[]> = {
   slide: [K(0, 100, 0, 70), K(220, 100, 1, 0)],
   zoom: [K(0, 175, 0), K(200, 100, 1)],
   swing: [K(0, 90, 0, 0, -9), K(130, 106, 1, 0, 5), K(230, 100, 1, 0, -2), K(310, 100, 1, 0, 0)],
+  // dy animations stay two-keyframe linear: ASS \move can only go A -> B.
+  drop: [K(0, 100, 0, -90), K(210, 100, 1, 0)],
+  elastic: [K(0, 50, 0), K(100, 126, 1), K(180, 90, 1), K(250, 109, 1), K(320, 97, 1), K(390, 100, 1)],
+  spin: [K(0, 45, 0, 0, -170), K(120, 75, 1, 0, -90), K(270, 100, 1, 0, 0)],
+  shake: [K(0, 100, 0), K(50, 100, 1, 0, -5), K(110, 100, 1, 0, 5), K(170, 100, 1, 0, -4), K(230, 100, 1, 0, 3), K(290, 100, 1, 0, 0)],
 };
 
 /** Scale keyframes for the word-pop effect, ms from the word's start. */
@@ -558,17 +764,23 @@ function sliceText(style: CaptionStyle, words: TimedWord[], k: number, offsetMs:
     const t = sanitizeAssText(w.text);
     if (!t) return;
     if (i !== k) {
+      const c = inactiveWordColor(style, w, k >= 0);
+      const body = c === style.textColor ? t : `{\\1c${assColor(c)}}${t}{\\1c${text}}`;
       if (style.wordEffect === "reveal" && i === k + 1) {
         // hide every word that hasn't been said yet (tags carry over to the rest)
-        parts.push(`{\\1a&HFF&\\3a&HFF&${effectiveBackground(style) ? "" : "\\4a&HFF&"}}${t}`);
+        parts.push(`{\\1a&HFF&\\3a&HFF&${effectiveBackground(style) ? "" : "\\4a&HFF&"}}${body}`);
       } else {
-        parts.push(t);
+        parts.push(body);
       }
       return;
     }
     switch (style.wordEffect) {
       case "highlight":
+      case "spotlight":
         parts.push(`{\\1c${hl}}${t}{\\1c${text}}`);
+        break;
+      case "underline":
+        parts.push(`{\\1c${hl}\\u1}${t}{\\1c${text}\\u0}`);
         break;
       case "pop":
         parts.push(`{\\1c${hl}${popTags(style, offsetMs)}}${t}{\\1c${text}${entranceTags(style, offsetMs, false)}}`);
@@ -597,7 +809,7 @@ function sliceText(style: CaptionStyle, words: TimedWord[], k: number, offsetMs:
   return out;
 }
 
-function karaokeText(words: TimedWord[], chunkStartCs: number): string {
+function karaokeText(style: CaptionStyle, words: TimedWord[], chunkStartCs: number): string {
   let cursor = chunkStartCs;
   let out = "";
   words.forEach((w, i) => {
@@ -606,7 +818,9 @@ function karaokeText(words: TimedWord[], chunkStartCs: number): string {
     const ws = toCs(w.start);
     const we = Math.max(ws + 1, toCs(w.end));
     if (ws > cursor) out += `{\\k${ws - cursor}}`;
-    out += `{\\kf${we - Math.max(ws, cursor)}}${t}${i < words.length - 1 ? " " : ""}`;
+    // \2c is the colour a word has before the sweep reaches it
+    const pre = style.emphasis && w.key ? `\\2c${assColor(style.emphasisColor)}` : `\\2c${assColor(style.textColor)}`;
+    out += `{\\kf${we - Math.max(ws, cursor)}${pre}}${t}${i < words.length - 1 ? " " : ""}`;
     cursor = Math.max(cursor, we);
   });
   return out;
@@ -629,7 +843,7 @@ function chunkEvents(chunk: CaptionChunk, style: CaptionStyle): string[] {
     return [dialogue(startCs, endCs, head(0, true) + sliceText(style, words, -1, 0))];
   }
   if (style.wordEffect === "karaoke") {
-    return [dialogue(startCs, endCs, head(0, true) + karaokeText(words, startCs))];
+    return [dialogue(startCs, endCs, head(0, true) + karaokeText(style, words, startCs))];
   }
 
   // One event per "currently spoken word" slice.

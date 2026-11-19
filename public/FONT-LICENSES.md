@@ -11,7 +11,18 @@ redistribute and embed:
 | Archivo Black | SIL Open Font License 1.1 |
 | Bangers | SIL Open Font License 1.1 |
 | Bebas Neue | SIL Open Font License 1.1 |
-| Poppins (ExtraBold) | SIL Open Font License 1.1 |
+| Poppins (ExtraBold, Black, Bold) | SIL Open Font License 1.1 |
+| Abril Fatface | SIL Open Font License 1.1 |
+| Black Ops One | SIL Open Font License 1.1 |
+| Bowlby One | SIL Open Font License 1.1 |
+| Bungee | SIL Open Font License 1.1 |
+| Caveat Brush | SIL Open Font License 1.1 |
+| Lilita One | SIL Open Font License 1.1 |
+| Pacifico | SIL Open Font License 1.1 |
+| Press Start 2P | SIL Open Font License 1.1 |
+| Righteous | SIL Open Font License 1.1 |
+| Russo One | SIL Open Font License 1.1 |
+| Titan One | SIL Open Font License 1.1 |
 | Luckiest Guy | Apache License 2.0 |
 | Permanent Marker | Apache License 2.0 |
 

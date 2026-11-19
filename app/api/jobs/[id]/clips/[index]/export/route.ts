@@ -26,6 +26,36 @@ export async function POST(
     return NextResponse.json({ error: "Invalid edit data" }, { status: 400 });
   }
 
+  // the spec ends up inside an ffmpeg filter graph, so check what it relies on
+  const t = spec?.trim;
+  if (!t || !Number.isFinite(t.start) || !Number.isFinite(t.end) || t.end <= t.start || t.start < 0) {
+    return NextResponse.json({ error: "Invalid trim range" }, { status: 400 });
+  }
+  const hex = (c: unknown, fallback: string) => (typeof c === "string" && /^#[0-9a-fA-F]{6}$/.test(c) ? c : fallback);
+  const n = (v: unknown, fallback: number) => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
+  spec = {
+    ...spec,
+    textOverlays: (spec.textOverlays ?? []).map((o) => ({
+      ...o,
+      text: String(o.text ?? "").slice(0, 200),
+      color: hex(o.color, "#ffffff"),
+      x: n(o.x, 0.5),
+      y: n(o.y, 0.5),
+      fontSize: n(o.fontSize, 64),
+      start: n(o.start, 0),
+      end: n(o.end, 0),
+    })),
+    stickers: (spec.stickers ?? []).map((st) => ({
+      ...st,
+      color: hex(st.color, "#ff4e1f"),
+      x: n(st.x, 0.5),
+      y: n(st.y, 0.5),
+      size: n(st.size, 160),
+      start: n(st.start, 0),
+      end: n(st.end, 0),
+    })),
+  };
+
   const rawPath = path.join(process.cwd(), clip.rawPath);
   const outDir = clipsDir(id);
   const baseName = `clip-${clipIndex}-edit-${nanoid(6)}`;

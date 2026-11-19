@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -15,7 +15,9 @@ import { TextPanel } from "@/components/editor/panels/TextPanel";
 import { StickersPanel } from "@/components/editor/panels/StickersPanel";
 import { FiltersPanel } from "@/components/editor/panels/FiltersPanel";
 import { MusicPanel } from "@/components/editor/panels/MusicPanel";
+import { EnhancePanel, type Cuts } from "@/components/editor/panels/EnhancePanel";
 import {
+  dropCutWords,
   groupWordsIntoChunks,
   normalizeCaptionStyle,
   DEFAULT_CAPTION_STYLE,
@@ -23,8 +25,10 @@ import {
   type CaptionStyle,
 } from "@/lib/captions";
 import { nanoid } from "nanoid";
+import { buildTimeline, normalizeRanges } from "@/lib/timeline";
+import { DEFAULT_AUDIO, DEFAULT_FILTERS, DEFAULT_POLISH } from "@/lib/editSpec";
 import { sfx } from "@/lib/sound";
-import type { TextOverlaySpec, StickerSpec, CropSpec, FilterSpec, Word } from "@/lib/types";
+import type { TextOverlaySpec, StickerSpec, CropSpec, FilterSpec, Word, AudioSpec, PolishSpec, LayoutMode } from "@/lib/types";
 
 interface ClipData {
   index: number;
@@ -52,9 +56,17 @@ export interface EditorState {
   stickers: StickerSpec[];
   filters: FilterSpec;
   music: MusicState | null;
+  /** ranges cut out by Remove silences / Cut filler words (source time) */
+  cuts: Cuts;
+  speed: number;
+  audio: AudioSpec;
+  polish: PolishSpec;
+  layout: LayoutMode;
 }
 
-const DEFAULT_FILTERS: FilterSpec = { brightness: 0, contrast: 0, saturation: 0 };
+// "um", "uh", "er", "hmm"… — whisper often drops these, so this only fires when it kept them
+const FILLER = /^(u+m+|u+h+|e+r+m*|h+m+|m{2,})$/i;
+const bareWord = (w: string) => w.toLowerCase().replace(/[^a-z]/g, "");
 const DEFAULT_CROP: CropSpec = { x: 0.5, y: 0.5, zoom: 1 };
 const DEFAULT_WORDS_PER_CAPTION = 3;
 
@@ -114,7 +126,21 @@ export default function EditorPage() {
     stickers: [],
     filters: DEFAULT_FILTERS,
     music: null,
+    cuts: { silences: [], fillers: [] },
+    speed: 1,
+    audio: DEFAULT_AUDIO,
+    polish: DEFAULT_POLISH,
+    layout: "fill",
   });
+
+  const [genBusy, setGenBusy] = useState(false);
+  const [genError, setGenError] = useState<{ message: string; code: string | null } | null>(null);
+  const [installingWhisper, setInstallingWhisper] = useState(false);
+
+  // everything time-based is mapped through this: cuts + speed change where things land
+  const removed = useMemo(() => normalizeRanges([...state.cuts.silences, ...state.cuts.fillers]), [state.cuts]);
+  const timeline = useMemo(() => buildTimeline(state.trim, removed, state.speed), [state.trim, removed, state.speed]);
+  const shownChunks = useMemo(() => dropCutWords(state.captionChunks, timeline), [state.captionChunks, timeline]);
 
   useEffect(() => {
     let cancelled = false;
@@ -158,6 +184,63 @@ export default function EditorPage() {
     update("captionChunks", groupWordsIntoChunks(clip.words, n));
   }
 
+  async function generateCaptions(opts: { language: string; translate: boolean; quality: "fast" | "accurate" }) {
+    if (!clip) return;
+    setGenBusy(true);
+    setGenError(null);
+    try {
+      const res = await fetch(`/api/jobs/${jobId}/clips/${clipIndex}/captions`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(opts),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setGenError({ message: data.error || "Caption generation failed.", code: data.code ?? null });
+        sfx.lose();
+        return;
+      }
+      const words: Word[] = data.words;
+      setClip((c) => (c ? { ...c, words } : c));
+      setState((s) => ({ ...s, captionsEnabled: true, captionChunks: groupWordsIntoChunks(words, wordsPerCaption) }));
+      sfx.jobDone();
+    } catch {
+      setGenError({ message: "Couldn't reach the server.", code: null });
+    } finally {
+      setGenBusy(false);
+    }
+  }
+
+  async function installWhisper() {
+    setInstallingWhisper(true);
+    try {
+      const res = await fetch("/api/system/install", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ tool: "whisper" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data.error || "Install failed");
+      setGenError({ message: "Speech-to-text installed. Click “Auto-generate captions” again.", code: null });
+    } catch (e) {
+      setGenError({ message: e instanceof Error ? e.message : "Install failed", code: "whisper_missing" });
+    } finally {
+      setInstallingWhisper(false);
+    }
+  }
+
+  // filler words in the transcript that haven't been cut yet
+  const fillerRanges = useMemo(
+    () =>
+      (clip?.words ?? [])
+        .filter((w) => FILLER.test(bareWord(w.word)) && !timeline.isRemoved((w.start + w.end) / 2))
+        .map((w) => ({ start: Math.max(0, w.start - 0.02), end: w.end + 0.04 })),
+    [clip?.words, timeline]
+  );
+  const cutFillers = useCallback(() => {
+    setState((s) => ({ ...s, cuts: { ...s.cuts, fillers: [...s.cuts.fillers, ...fillerRanges] } }));
+  }, [fillerRanges]);
+
   function update<K extends keyof EditorState>(key: K, value: EditorState[K]) {
     setState((s) => ({ ...s, [key]: value }));
   }
@@ -174,6 +257,11 @@ export default function EditorPage() {
         textOverlays: state.textOverlays,
         stickers: state.stickers,
         filters: state.filters,
+        removed,
+        speed: state.speed,
+        audio: state.audio,
+        polish: state.polish,
+        layout: state.layout,
         music: state.music
           ? { path: state.music.path, volume: state.music.volume, duckOriginal: state.music.duckOriginal }
           : null,
@@ -286,11 +374,14 @@ export default function EditorPage() {
             }
             onUpdateCaptionY={(y) => setState((s) => ({ ...s, captionStyle: { ...s.captionStyle, positionY: y } }))}
             activeTool={tool}
+            timeline={timeline}
+            chunks={shownChunks}
           />
           <TrimBar
             duration={clip.duration}
             trim={state.trim}
             currentTime={currentTime}
+            removed={removed}
             onChange={(trim) => update("trim", trim)}
             onSeek={(t) => {
               if (videoRef.current) videoRef.current.currentTime = t;
@@ -314,6 +405,14 @@ export default function EditorPage() {
                 wordsPerCaption={wordsPerCaption}
                 onRegroup={regroupCaptions}
                 canRegroup={clip.words.length > 0}
+                gen={{
+                  busy: genBusy,
+                  error: genError?.message ?? null,
+                  code: genError?.code ?? null,
+                  installing: installingWhisper,
+                  onGenerate: generateCaptions,
+                  onInstall: installWhisper,
+                }}
               />
             )}
             {tool === "reframe" && <ReframePanel crop={state.crop} onChange={(c) => update("crop", c)} />}
@@ -334,6 +433,27 @@ export default function EditorPage() {
               />
             )}
             {tool === "filters" && <FiltersPanel filters={state.filters} onChange={(f) => update("filters", f)} />}
+            {tool === "enhance" && (
+              <EnhancePanel
+                jobId={jobId}
+                clipIndex={clipIndex}
+                trim={state.trim}
+                timeline={timeline}
+                speed={state.speed}
+                onSpeed={(v) => update("speed", v)}
+                cuts={state.cuts}
+                onCuts={(c) => update("cuts", c)}
+                fillerCount={fillerRanges.length}
+                onCutFillers={cutFillers}
+                hasWords={clip.words.length > 0}
+                audio={state.audio}
+                onAudio={(a) => update("audio", a)}
+                polish={state.polish}
+                onPolish={(p) => update("polish", p)}
+                layout={state.layout}
+                onLayout={(l) => update("layout", l)}
+              />
+            )}
             {tool === "music" && (
               <MusicPanel jobId={jobId} music={state.music} onChange={(m) => update("music", m)} />
             )}

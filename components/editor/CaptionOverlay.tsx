@@ -7,6 +7,7 @@ import {
   effectiveBackground,
   entranceAt,
   exitOpacityAt,
+  inactiveWordColor,
   wordBoxPadding,
   wordPopScaleAt,
   REVEAL_FADE_MS,
@@ -132,9 +133,21 @@ export function CaptionOverlay({
   function wordStyle(i: number, ws: number): CSSProperties {
     const active = i === k;
     const s: CSSProperties = { display: "inline-block", position: "relative" };
+    // words that aren't being spoken: plain text colour, emphasis colour, or dimmed (spotlight)
+    const idle = inactiveWordColor(style, words[i], k >= 0);
+    if (idle !== style.textColor) s.color = idle;
     switch (style.wordEffect) {
       case "highlight":
+      case "spotlight":
         if (active) s.color = style.highlightColor;
+        break;
+      case "underline":
+        if (active) {
+          s.color = style.highlightColor;
+          s.textDecoration = "underline";
+          s.textDecorationThickness = `${Math.max(2, style.fontSize * 0.06 * scale)}px`;
+          s.textUnderlineOffset = `${style.fontSize * 0.08 * scale}px`;
+        }
         break;
       case "pop":
         if (active) {

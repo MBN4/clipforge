@@ -25,7 +25,7 @@ npm run dev           # then open http://localhost:3000
 | Node 20+ | everything | https://nodejs.org |
 | `ffmpeg` + `ffprobe` (with `libx264`; `libass` for captions) | cutting, reframing, captions, export | Linux `sudo apt install ffmpeg` · macOS `brew install ffmpeg` · Windows `winget install Gyan.FFmpeg` |
 | `yt-dlp` | pasted YouTube / TikTok / Instagram / Facebook links (uploads work without it) | `npm run setup`, or `pip install -U yt-dlp`, or `brew install yt-dlp` |
-| Python 3.10+ and `pip install faster-whisper` | speech-to-text → caption timing and smarter clip picking (optional — without it clips are picked by pacing and no captions are burned in) | `pip install faster-whisper` |
+| Python 3.10+ and `pip install faster-whisper` | speech-to-text → caption timing, smarter clip picking and the editor's Auto-generate captions (optional — without it clips are picked by pacing and no captions are burned in) | `pip install faster-whisper` |
 
 The studio also shows a **setup banner** whenever something is missing on the
 machine it's running on, with the command to fix it and a Re-check button, and
@@ -118,10 +118,17 @@ streamed through `/api/files/*`.
 The editor's **Captions** tab gives you full control of how captions look and
 move:
 
-- **Presets:** Spotlight, Karaoke, Word box, Bouncy, Neon, Typewriter, Comic,
-  Marker and Clean. One click applies a preset, and you can tweak anything
-  after that.
-- **Entrance animation:** none, fade, pop, bounce, slide up, zoom in, swing.
+- **Auto-generate captions:** one click transcribes the clip's speech into
+  word-timed captions (language picker, "translate to English", fast or
+  accurate). It needs `faster-whisper`; if it's missing the editor offers a
+  one-click install. Nothing else is needed for clips that were already
+  transcribed when they were made.
+- **Presets (21):** Spotlight, Karaoke, Word box, Bouncy, Neon, Typewriter,
+  Comic, Marker, Clean, Viral, Money, Focus, Arcade, Hype, Boss, Candy, Titan,
+  Neon script, Cinema, Sketch and Tech. One click applies a preset, and you
+  can tweak anything after that.
+- **Entrance animation:** none, fade, pop, bounce, slide up, zoom in, swing,
+  drop in, elastic, spin in, shake.
 - **Word effects:** these follow the transcript's word timings.
   - Highlight: the spoken word changes colour.
   - Word pop: the spoken word scales up and changes colour.
@@ -129,14 +136,40 @@ move:
   - Word box: a coloured box sits behind the spoken word.
   - Reveal: words appear as they're spoken.
   - Glow: the spoken word glows.
-- **Text:** 7 bundled fonts plus the system ones, size, letter spacing,
-  uppercase, and words per caption (1–6).
+  - Underline: the spoken word is coloured and underlined.
+  - Spotlight: every other word dims, the spoken word stays bright.
+- **Auto-emphasize key words:** numbers, money, hype words and long impact
+  words get their own colour even when they aren't being spoken.
+- **Text:** 20 bundled fonts in a visual picker (bold, display, handwritten,
+  retro) plus the system ones, size, letter spacing, uppercase, and words per
+  caption (1–6).
 - **Colours and effects:** text and highlight colours, outline colour and
   width, drop-shadow colour, distance and opacity, and an optional background
   box.
 - **Position:** presets or a slider, or drag the caption on the preview.
 
 The last style you used is remembered in your browser for the next clip.
+
+## Magic tab and filters
+
+Automatic edits that re-time everything else (captions, text, stickers, the
+progress bar) for you:
+
+- **Remove silences:** detects dead air (Gentle / Balanced / Tight) and
+  jump-cuts it out. Cuts show as stripes on the timeline and the preview skips
+  them.
+- **Cut filler words:** removes "um" / "uh" found in the transcript.
+- **Speed:** 0.75x to 2x.
+- **Layout:** Fill (crop to vertical) or Fit with a blurred copy of the video
+  behind it.
+- **Audio:** voice clean-up (rumble and hiss) and loudness normalisation
+  (-16 LUFS).
+- **Polish:** fade in/out and an animated progress bar.
+- **Filters:** 12 looks (Cinematic, Golden hour, Cool mood, Vintage, Noir…)
+  plus brightness, contrast, saturation, warmth, vignette and sharpen.
+
+`lib/timeline.ts` maps source time to output time through cuts and speed, and
+both the live preview and the ffmpeg export use it, so they stay in step.
 
 How it works: `lib/captions.ts` holds the keyframes and word timing.
 `components/editor/CaptionOverlay.tsx` plays them back live, reading the
