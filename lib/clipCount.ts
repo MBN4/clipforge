@@ -10,6 +10,20 @@ export interface ClipCountRange {
 // more options than a 2-minute clip.
 const ABSOLUTE_MAX = 40;
 
+/** Longest stretch of a linked video that can be clipped at once (longer videos must be sectioned). */
+export const MAX_SECTION_SECONDS = 2 * 3600;
+/** The section picked automatically for a very long video when none is chosen. */
+export const DEFAULT_SECTION_SECONDS = 30 * 60;
+
+/** "0:53:34" / "53:34" */
+export function fmtTimestamp(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}` : `${m}:${String(sec).padStart(2, "0")}`;
+}
+
 export function clipCountRange(durationSeconds: number): ClipCountRange {
   if (!durationSeconds || durationSeconds <= 0) {
     return { min: 1, max: 6, default: 3 };
