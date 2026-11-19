@@ -13,6 +13,7 @@ function fmt(s: number) {
 }
 
 export function ClipCard({
+  section,
   clip,
   index,
   jobId,
@@ -24,6 +25,8 @@ export function ClipCard({
   index: number;
   jobId: string;
   videoTitle?: string;
+  /** when only part of the source video was clipped, e.g. "53:34–2:48:42" */
+  section?: string;
   selected?: boolean;
   /** when given, the card shows a selection checkbox */
   onToggle?: () => void;
@@ -78,6 +81,11 @@ export function ClipCard({
 
       <div className="p-4">
         {videoTitle && <p className="mb-1.5 truncate font-mono text-[10px] uppercase tracking-wider text-paper-dim">{videoTitle}</p>}
+        {section && (
+          <p className="mb-1.5 inline-flex items-center gap-1 rounded-full bg-ember/10 px-2 py-0.5 font-mono text-[10px] text-ember-soft" title="Only this part of the source video was clipped">
+            ✂ Clipped {section}
+          </p>
+        )}
         <h3 className="line-clamp-2 font-display text-sm font-semibold leading-snug text-paper">{clip.title}</h3>
         <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-paper-dim">{clip.reason}</p>
 

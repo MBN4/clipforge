@@ -11,6 +11,7 @@ import { Select } from "@/components/ui/Select";
 import { BulkCaptionsDialog } from "./BulkCaptionsDialog";
 import { EmptyState, PageHeader } from "./ui";
 import { jobTitle } from "@/lib/dashboard";
+import { fmtTimestamp } from "@/lib/clipCount";
 
 type Sort = "newest" | "score" | "longest" | "shortest";
 
@@ -217,6 +218,7 @@ export function LibraryView() {
                     index={i}
                     jobId={job.id}
                     videoTitle={jobTitle(job)}
+                    section={job.request?.range ? `${fmtTimestamp(job.request.range.start)}–${fmtTimestamp(job.request.range.end)}` : undefined}
                     selected={picked.has(keyOf(job.id, clip.index))}
                     onToggle={() => toggle(keyOf(job.id, clip.index))}
                   />

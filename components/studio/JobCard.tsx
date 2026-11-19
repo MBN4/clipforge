@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Clock, Hourglass, Link2, Upload, X } from "lucide-react";
+import { Clock, Hourglass, Link2, Scissors, Upload, X } from "lucide-react";
+import { fmtTimestamp } from "@/lib/clipCount";
 import { activeSeconds, etaSeconds, fmtClock, fmtDur, jobTitle, statusOf, isActive } from "@/lib/dashboard";
 import type { ClientJob } from "@/lib/serialize";
 import { Card, ConfirmButton, ProgressBar, StageSteps, StatusPill, Thumb } from "./ui";
@@ -41,6 +42,12 @@ export function JobCard({ job, now, line, onCancel }: { job: ClientJob; now: num
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   <Chip icon={job.source.type === "upload" ? Upload : Link2}>{sourceLabel(job)}</Chip>
                   {job.sourceDuration ? <Chip icon={Clock}>{fmtDur(job.sourceDuration)} source</Chip> : null}
+                  {job.request?.range ? (
+                    <Chip icon={Scissors}>
+                      Clipped {fmtTimestamp(job.request.range.start)}–{fmtTimestamp(job.request.range.end)}
+                      {job.sourceDuration ? ` of ${fmtTimestamp(job.sourceDuration)}` : ""}
+                    </Chip>
+                  ) : null}
                   {job.request?.clipCount ? <Chip>{job.request.clipCount} clips</Chip> : null}
                   {line != null && line > 0 && <Chip icon={Hourglass}>#{line + 1} in line</Chip>}
                 </div>

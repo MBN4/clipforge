@@ -15,19 +15,25 @@ export function RangePicker({
   duration,
   start,
   end,
+  maxSpan,
   onChange,
 }: {
   duration: number;
   start: number;
   end: number;
+  /** the section can't be longer than this many seconds; dragging past it carries the other handle along */
+  maxSpan?: number;
   onChange: (start: number, end: number) => void;
 }) {
   function setStart(v: number) {
-    onChange(Math.min(v, end - MIN_GAP), end);
+    const s = Math.min(v, end - MIN_GAP);
+    onChange(s, maxSpan && end - s > maxSpan ? s + maxSpan : end);
   }
   function setEnd(v: number) {
-    onChange(start, Math.max(v, start + MIN_GAP));
+    const e = Math.max(v, start + MIN_GAP);
+    onChange(maxSpan && e - start > maxSpan ? e - maxSpan : start, e);
   }
+  const atMax = !!maxSpan && end - start >= maxSpan - 1;
 
   const startPct = (start / duration) * 100;
   const endPct = (end / duration) * 100;
@@ -64,6 +70,13 @@ export function RangePicker({
         <span className="text-paper">{fmtTime(end - start)} selected</span>
         <span>{fmtTime(end)}</span>
       </div>
+      <p className="mt-2.5 flex items-start gap-1.5 rounded-lg bg-ember/10 px-2.5 py-2 text-[11px] leading-snug text-ember-soft">
+        <span aria-hidden>✂</span>
+        <span>
+          Only <strong className="font-semibold">{fmtTime(start)} – {fmtTime(end)}</strong> of this {fmtTime(duration)} video is downloaded and clipped.
+          {maxSpan ? ` A section can be up to ${fmtTime(maxSpan)}${atMax ? " — you're at the limit; dragging further moves the whole window." : "."}` : ""}
+        </span>
+      </p>
 
       <style jsx>{`
         .range-thumb::-webkit-slider-thumb {

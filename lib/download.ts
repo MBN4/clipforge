@@ -2,6 +2,8 @@ import path from "node:path";
 import fs from "node:fs";
 import { run, trimSource } from "./ffmpeg";
 import { cancelRequested } from "./scheduler";
+import { downloadSlice, NotSliceable } from "./dashSlice";
+import { DEFAULT_SECTION_SECONDS, MAX_SECTION_SECONDS } from "./clipCount";
 import type { HeatPoint } from "./peaks";
 
 export function detectPlatform(url: string): string {
@@ -59,9 +61,9 @@ function toTimestamp(seconds: number): string {
 }
 
 /** Videos longer than this are never downloaded whole — only a slice of them is. */
-export const MAX_WHOLE_DOWNLOAD = 2 * 3600;
+export const MAX_WHOLE_DOWNLOAD = MAX_SECTION_SECONDS;
 /** How much of a very long video to take when the user didn't choose a range. */
-export const AUTO_WINDOW = 30 * 60;
+export const AUTO_WINDOW = DEFAULT_SECTION_SECONDS;
 
 export function formatLength(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -140,7 +142,7 @@ function findSource(destDir: string): string {
   return path.join(destDir, files[0]);
 }
 
-async function ytdlp(url: string, destDir: string, extra: string[], onProgress?: DownloadOptions["onProgress"]) {
+async function ytdlp(url: string, destDir: string, extra: string[], onProgress?: DownloadOptions["onProgress"], stallMs = STALL_MS) {
   const args = [
     "--no-playlist",
     "-f",
@@ -163,7 +165,7 @@ async function ytdlp(url: string, destDir: string, extra: string[], onProgress?:
     url,
   ];
   await run("yt-dlp", args, {
-    stall: { dir: destDir, ms: STALL_MS },
+    stall: { dir: destDir, ms: stallMs },
     onLine: onProgress
       ? (line) => {
           const m = PCT.exec(line);
@@ -177,9 +179,19 @@ export async function downloadFromUrl(url: string, destDir: string, opts: Downlo
   const { range, useSections, noFullFallback, onProgress } = opts;
 
   if (range && useSections) {
+    // Fast path: fetch only the bytes of the window (see lib/dashSlice.ts). ffmpeg-based slicing crawls on
+    // long videos, so it's only the fallback.
     try {
       clearPartials(destDir);
-      await ytdlp(url, destDir, ["--download-sections", `*${toTimestamp(range.start)}-${toTimestamp(range.end)}`], onProgress);
+      return await downloadSlice(url, destDir, range, onProgress);
+    } catch (e) {
+      if (cancelRequested()) throw e;
+      console.warn("[download] direct slice failed, trying yt-dlp sections:", e instanceof NotSliceable ? `not sliceable (${e.message})` : e);
+    }
+    try {
+      clearPartials(destDir);
+      // ffmpeg may be silent for minutes while it seeks into a long stream, so be patient before calling it stalled
+      await ytdlp(url, destDir, ["--download-sections", `*${toTimestamp(range.start)}-${toTimestamp(range.end)}`], onProgress, 6 * 60_000);
       return findSource(destDir);
     } catch (e) {
       if (cancelRequested() || noFullFallback) throw e;

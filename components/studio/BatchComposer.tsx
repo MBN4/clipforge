@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Activity, AlertTriangle, ArrowRight, Clapperboard, Clock, FileVideo, Flame, Link2, Loader, Scissors, Upload, X } from "lucide-react";
-import { clipCountRange } from "@/lib/clipCount";
+import { clipCountRange, DEFAULT_SECTION_SECONDS, MAX_SECTION_SECONDS } from "@/lib/clipCount";
 import { fmtBytes, readFileDuration } from "@/lib/clientMedia";
 import { fmtDur } from "@/lib/dashboard";
 import { RangePicker } from "./RangePicker";
@@ -83,6 +83,7 @@ function ItemCard({
   onRemove: () => void;
 }) {
   const dur = item.duration ?? 0;
+  const tooLong = item.kind === "url" && dur > MAX_SECTION_SECONDS;
   const range = clipCountRange(item.useRange ? item.rangeEnd - item.rangeStart : dur);
   const busy = item.status === "submitting";
 
@@ -175,8 +176,13 @@ function ItemCard({
 
                 {dur > RANGE_THRESHOLD && (
                   <div>
+                    {tooLong && (
+                      <p className="mb-2 text-[11px] leading-snug text-paper-dim">
+                        This video is {fmtDur(dur)} long — too long to take whole. Pick the section to clip (up to {fmtDur(MAX_SECTION_SECONDS)}).
+                      </p>
+                    )}
                     <div className="inline-flex rounded-full border border-line-strong bg-ink-3 p-0.5 text-[11px]">
-                      {[false, true].map((on) => (
+                      {(tooLong ? [true] : [false, true]).map((on) => (
                         <button
                           key={String(on)}
                           onClick={() => {
@@ -195,6 +201,7 @@ function ItemCard({
                           duration={dur}
                           start={item.rangeStart}
                           end={item.rangeEnd}
+                          maxSpan={item.kind === "url" ? MAX_SECTION_SECONDS : undefined}
                           onChange={(s, e) => onChange({ rangeStart: s, rangeEnd: e, clipCount: clipCountRange(e - s).default })}
                         />
                       </div>
@@ -253,8 +260,10 @@ export function BatchComposer() {
             platform: data.platform,
             duration: data.duration,
             hasHeatmap: !!data.hasHeatmap,
-            rangeEnd: data.duration,
-            clipCount: clipCountRange(data.duration).default,
+            // links longer than the limit can't be taken whole, so start with a section selected
+            ...(data.duration > MAX_SECTION_SECONDS
+              ? { useRange: true, rangeStart: 0, rangeEnd: DEFAULT_SECTION_SECONDS, clipCount: clipCountRange(DEFAULT_SECTION_SECONDS).default }
+              : { rangeEnd: data.duration, clipCount: clipCountRange(data.duration).default }),
           });
         } catch (e) {
           patch(key, { status: "error", error: e instanceof Error ? e.message : "Couldn't read that video" });
