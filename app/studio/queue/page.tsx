@@ -10,6 +10,8 @@ import { ProcessingAmbience } from "@/components/studio/ProcessingAmbience";
 import { TipTicker } from "@/components/studio/TipTicker";
 import { GameHub } from "@/components/games/GameHub";
 import { fmtAgo, isActive, jobTitle } from "@/lib/dashboard";
+import { SeriesControls } from "@/components/studio/SeriesControls";
+import { latestParts } from "@/lib/seriesClient";
 
 export default function QueuePage() {
   const { jobs, system, loaded, cancelJob, retryJob } = useDashboard();
@@ -19,6 +21,8 @@ export default function QueuePage() {
     .filter((j) => !isActive(j))
     .sort((a, b) => (b.finishedAt ?? b.updatedAt) - (a.finishedAt ?? a.updatedAt))
     .slice(0, 5);
+  // long videos the user stopped part-way: they can be picked up again from here
+  const onHold = [...latestParts(jobs).values()].filter((j) => j.series!.status === "stopped" && j.stage !== "error" && !isActive(j) && j.series!.cursor < j.series!.videoEnd);
   const now = useNow(true);
   const waitingIds = active.filter((j) => j.waiting || j.stage === "queued").map((j) => j.id);
   const working = active.length - waitingIds.length;
@@ -49,6 +53,14 @@ export default function QueuePage() {
             </p>
           </div>
         </Card>
+      )}
+
+      {onHold.length > 0 && (
+        <div className="mb-6 space-y-3">
+          {onHold.map((j) => (
+            <SeriesControls key={j.series!.id} job={j} variant="held" />
+          ))}
+        </div>
       )}
 
       {!loaded ? (

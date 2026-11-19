@@ -10,6 +10,13 @@ import { toClientJob } from "@/lib/serialize";
 import { ensureDir, jobDir } from "@/lib/paths";
 import { detectPlatform } from "@/lib/download";
 import { runPipeline } from "@/lib/pipeline";
+import { SERIES_BATCH_SEC, SERIES_PART_SEC, type SeriesInfo } from "@/lib/types";
+
+// optional tuning: CLIPFORGE_SERIES_PART_SEC (default 1800) and CLIPFORGE_SERIES_BATCH_SEC (default 7200)
+const envSec = (name: string, fallback: number) => {
+  const n = Number(process.env[name]);
+  return Number.isFinite(n) && n >= 30 ? n : fallback;
+};
 import type { TimeRange } from "@/lib/download";
 import type { ClipMode, Job } from "@/lib/types";
 
@@ -46,6 +53,7 @@ export async function POST(req: NextRequest) {
   let title: string | undefined;
   let thumbnail: string | undefined;
   let duration: number | undefined;
+  let seriesFrom: number | undefined; // set when a long link should be clipped part by part
 
   if (contentType.includes("multipart/form-data")) {
     const form = await req.formData();
@@ -77,6 +85,31 @@ export async function POST(req: NextRequest) {
     title = str(body.title, 200);
     thumbnail = str(body.thumbnail, 1000);
     duration = num(body.duration);
+    if (body.series && typeof body.series === "object" && duration && duration > envSec("CLIPFORGE_SERIES_PART_SEC", SERIES_PART_SEC)) {
+      const from = Number((body.series as { from?: unknown }).from);
+      seriesFrom = Number.isFinite(from) ? Math.min(Math.max(0, from), duration - 60) : 0;
+    }
+  }
+
+  // a long video clipped automatically in consecutive parts: this job is part 1
+  let series: SeriesInfo | undefined;
+  if (seriesFrom !== undefined && duration) {
+    const partSec = envSec("CLIPFORGE_SERIES_PART_SEC", SERIES_PART_SEC);
+    const end = Math.min(duration, seriesFrom + partSec);
+    range = { start: seriesFrom, end: duration - end < 20 ? duration : end };
+    series = {
+      id: nanoid(10),
+      baseTitle: title ?? "Long video",
+      videoEnd: duration,
+      partSec,
+      batchSec: envSec("CLIPFORGE_SERIES_BATCH_SEC", SERIES_BATCH_SEC),
+      index: 1,
+      cursor: range.end,
+      batchDone: range.end - range.start,
+      skipped: [],
+      status: "running",
+    };
+    title = `${series.baseTitle} · Part 1`;
   }
 
   const job: Job = {
@@ -88,6 +121,7 @@ export async function POST(req: NextRequest) {
     thumbnail,
     sourceDuration: duration,
     request: { clipCount, range, mode },
+    series,
     stage: "queued",
     progress: 2,
     message: "Queued…",

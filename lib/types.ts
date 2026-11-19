@@ -51,6 +51,38 @@ export interface ClipResult {
   words: Word[];
 }
 
+/** Seconds of footage clipped per automatic part, and per batch before the user is asked to continue. */
+export const SERIES_PART_SEC = 30 * 60;
+export const SERIES_BATCH_SEC = 2 * 3600;
+
+/**
+ * A long video clipped in consecutive parts. Part N+1 starts by itself when part N finishes; after
+ * `batchSec` of footage the series pauses and asks the user whether to continue, skip some of the
+ * video, or stop. The same record is kept on every job of the series (see lib/series.ts).
+ */
+export interface SeriesInfo {
+  id: string;
+  /** shown as "<baseTitle> · Part N" */
+  baseTitle: string;
+  /** length of the whole source video, seconds */
+  videoEnd: number;
+  partSec: number;
+  batchSec: number;
+  /** this job's part number, 1-based */
+  index: number;
+  /** source time where the next part would start (end of the newest part) */
+  cursor: number;
+  /** seconds clipped since the user last said "continue" */
+  batchDone: number;
+  /** parts the user chose not to clip */
+  skipped: { start: number; end: number }[];
+  /** running: next part starts by itself · paused: waiting for the user (batch done / a part failed) ·
+   * stopped: user stopped it · complete: reached the end of the video */
+  status: "running" | "paused" | "stopped" | "complete";
+  /** why it is paused */
+  pausedFor?: "batch" | "error";
+}
+
 export interface Job {
   id: string;
   createdAt: number;
@@ -82,6 +114,8 @@ export interface Job {
   waitedMs?: number;
   /** True while the job is queued behind other work. */
   waiting?: boolean;
+  /** set when this job is one part of a long video clipped automatically in sections */
+  series?: SeriesInfo;
   /** Milliseconds spent in each stage (includes any waiting inside it). */
   timings?: Partial<Record<JobStage, number>>;
 }

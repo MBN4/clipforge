@@ -13,6 +13,7 @@ import { audioEnergyCurve, heatmapToCurve, peaksToClips, pickPeaks, sentenceBoun
 import { aiRankHighlights } from "./ai";
 import { renderClip } from "./render";
 import { clampClipCount } from "./clipCount";
+import { afterPartDone, onPartFailed } from "./series";
 import type { ClipMode, ClipResult, JobStage, Transcript } from "./types";
 
 const WAIT_LABEL = { download: "a download slot", cpu: "free CPU" } as const;
@@ -249,14 +250,23 @@ async function pipelineBody(
     throwIfCancelled();
     const clips = clipsByIndex;
     enter("done", { progress: 100, message: "Done", clips, finishedAt: Date.now() });
+    // a part of a long video: carry on with the next one (or pause for the user after 2h of footage)
+    afterPartDone(jobId, startSeriesPart);
   } catch (err: any) {
     if (isCancelled(err) || cancelRequested()) {
       enter("cancelled", { message: "Cancelled", finishedAt: Date.now() });
+      onPartFailed(jobId, true);
       return;
     }
     console.error("[pipeline] failed", err);
     enter("error", { message: "Something went wrong", error: err?.message ?? String(err), finishedAt: Date.now() });
+    onPartFailed(jobId, false);
   }
+}
+
+/** Starts a series part's pipeline (passed to lib/series.ts, which can't import this file). */
+export function startSeriesPart(jobId: string, url: string, clipCount: number | undefined, range: TimeRange, mode: ClipMode) {
+  runPipeline(jobId, url, null, clipCount, range, mode).catch((e) => console.error("pipeline crash", e));
 }
 
 /**

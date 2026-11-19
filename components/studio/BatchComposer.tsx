@@ -4,7 +4,9 @@ import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Activity, AlertTriangle, ArrowRight, Clapperboard, Clock, FileVideo, Flame, Link2, Loader, Scissors, Upload, X } from "lucide-react";
-import { clipCountRange, DEFAULT_SECTION_SECONDS, MAX_SECTION_SECONDS } from "@/lib/clipCount";
+import { clipCountRange, DEFAULT_SECTION_SECONDS, fmtTimestamp, MAX_SECTION_SECONDS } from "@/lib/clipCount";
+import { parseClock } from "@/lib/seriesClient";
+import { SERIES_BATCH_SEC, SERIES_PART_SEC } from "@/lib/types";
 import { fmtBytes, readFileDuration } from "@/lib/clientMedia";
 import { fmtDur } from "@/lib/dashboard";
 import { RangePicker } from "./RangePicker";
@@ -30,6 +32,10 @@ interface Item {
   upload?: number;
   clipCount: number;
   useRange: boolean;
+  /** a link longer than the section limit, clipped automatically in consecutive parts */
+  series: boolean;
+  /** where the parts begin (seconds) */
+  seriesStart: number;
   rangeStart: number;
   rangeEnd: number;
 }
@@ -84,7 +90,7 @@ function ItemCard({
 }) {
   const dur = item.duration ?? 0;
   const tooLong = item.kind === "url" && dur > MAX_SECTION_SECONDS;
-  const range = clipCountRange(item.useRange ? item.rangeEnd - item.rangeStart : dur);
+  const range = clipCountRange(item.series ? SERIES_PART_SEC : item.useRange ? item.rangeEnd - item.rangeStart : dur);
   const busy = item.status === "submitting";
 
   return (
@@ -161,7 +167,7 @@ function ItemCard({
             {item.status === "ready" && (
               <div className="mt-4 space-y-3">
                 <div className="flex items-center gap-4">
-                  <Label className="w-14 shrink-0">Clips</Label>
+                  <Label className="w-14 shrink-0">{item.series ? "Per part" : "Clips"}</Label>
                   <input
                     type="range"
                     min={range.min}
@@ -176,25 +182,42 @@ function ItemCard({
 
                 {dur > RANGE_THRESHOLD && (
                   <div>
-                    {tooLong && (
-                      <p className="mb-2 text-[11px] leading-snug text-paper-dim">
-                        This video is {fmtDur(dur)} long — too long to take whole. Pick the section to clip (up to {fmtDur(MAX_SECTION_SECONDS)}).
-                      </p>
-                    )}
                     <div className="inline-flex rounded-full border border-line-strong bg-ink-3 p-0.5 text-[11px]">
-                      {(tooLong ? [true] : [false, true]).map((on) => (
-                        <button
-                          key={String(on)}
-                          onClick={() => {
-                            const end = item.rangeEnd || dur;
-                            onChange({ useRange: on, rangeEnd: end, clipCount: clipCountRange(on ? end - item.rangeStart : dur).default });
-                          }}
-                          className={`rounded-full px-3 py-1 font-semibold transition ${item.useRange === on ? "bg-paper text-ink" : "text-paper-dim hover:text-paper"}`}
-                        >
-                          {on ? "Pick a section" : "Whole video"}
-                        </button>
-                      ))}
+                      {(tooLong ? (["parts", "section"] as const) : (["whole", "section"] as const)).map((m) => {
+                        const current = item.series ? "parts" : item.useRange ? "section" : "whole";
+                        return (
+                          <button
+                            key={m}
+                            onClick={() => {
+                              if (m === "parts") onChange({ series: true, useRange: false, clipCount: clipCountRange(SERIES_PART_SEC).default });
+                              else if (m === "whole") onChange({ series: false, useRange: false, clipCount: clipCountRange(dur).default });
+                              else {
+                                const fits = item.rangeEnd > item.rangeStart && item.rangeEnd - item.rangeStart <= (item.kind === "url" ? MAX_SECTION_SECONDS : Infinity);
+                                const end = fits ? item.rangeEnd : Math.min(dur, item.rangeStart + DEFAULT_SECTION_SECONDS);
+                                onChange({ series: false, useRange: true, rangeEnd: end, clipCount: clipCountRange(end - item.rangeStart).default });
+                              }
+                            }}
+                            className={`rounded-full px-3 py-1 font-semibold transition ${current === m ? "bg-paper text-ink" : "text-paper-dim hover:text-paper"}`}
+                          >
+                            {m === "parts" ? "Clip it all, in parts" : m === "section" ? "Pick a section" : "Whole video"}
+                          </button>
+                        );
+                      })}
                     </div>
+                    {item.series && (
+                      <div className="mt-3 rounded-xl border border-line-strong bg-ink/50 p-3 text-[11px] leading-relaxed text-paper-dim">
+                        <p>
+                          This video is {fmtDur(dur)} long. It will be clipped automatically,{" "}
+                          <span className="text-paper">{fmtDur(SERIES_PART_SEC)} at a time</span> (about {Math.max(1, Math.ceil((dur - item.seriesStart) / SERIES_PART_SEC))} parts), one after another. After every{" "}
+                          <span className="text-paper">{fmtDur(SERIES_BATCH_SEC)}</span> it pauses and asks whether to continue — and you can skip any part of the
+                          video or stop whenever you like.
+                        </p>
+                        <StartAt value={item.seriesStart} max={dur} onChange={(v) => onChange({ seriesStart: v })} />
+                      </div>
+                    )}
+                    {!tooLong ? null : item.useRange && (
+                      <p className="mt-2 text-[11px] leading-snug text-paper-dim">A single section can be up to {fmtDur(MAX_SECTION_SECONDS)}.</p>
+                    )}
                     {item.useRange && (
                       <div className="mt-3 rounded-xl border border-line-strong bg-ink/50 p-3">
                         <RangePicker
@@ -262,7 +285,7 @@ export function BatchComposer() {
             hasHeatmap: !!data.hasHeatmap,
             // links longer than the limit can't be taken whole, so start with a section selected
             ...(data.duration > MAX_SECTION_SECONDS
-              ? { useRange: true, rangeStart: 0, rangeEnd: DEFAULT_SECTION_SECONDS, clipCount: clipCountRange(DEFAULT_SECTION_SECONDS).default }
+              ? { series: true, useRange: false, rangeStart: 0, rangeEnd: data.duration, clipCount: clipCountRange(SERIES_PART_SEC).default }
               : { rangeEnd: data.duration, clipCount: clipCountRange(data.duration).default }),
           });
         } catch (e) {
@@ -290,6 +313,8 @@ export function BatchComposer() {
       status: "probing",
       clipCount: 3,
       useRange: false,
+      series: false,
+      seriesStart: 0,
       rangeStart: 0,
       rangeEnd: 0,
     }));
@@ -311,6 +336,8 @@ export function BatchComposer() {
       status: "probing",
       clipCount: 3,
       useRange: false,
+      series: false,
+      seriesStart: 0,
       rangeStart: 0,
       rangeEnd: 0,
     }));
@@ -331,16 +358,16 @@ export function BatchComposer() {
 
     const results = await Promise.all(
       ready.map(async (i) => {
-        const max = clipCountRange(i.useRange ? i.rangeEnd - i.rangeStart : (i.duration ?? 0)).max;
+        const max = clipCountRange(i.series ? SERIES_PART_SEC : i.useRange ? i.rangeEnd - i.rangeStart : (i.duration ?? 0)).max;
         const base = {
           clipCount: Math.min(i.clipCount, max),
           mode,
           duration: i.duration || undefined,
-          range: i.useRange ? { start: i.rangeStart, end: i.rangeEnd } : undefined,
+          range: i.useRange && !i.series ? { start: i.rangeStart, end: i.rangeEnd } : undefined,
         };
         const input: NewJobInput =
           i.kind === "url"
-            ? { kind: "url", url: i.url!, title: i.title, thumbnail: i.thumbnail, ...base }
+            ? { kind: "url", url: i.url!, title: i.title, thumbnail: i.thumbnail, ...base, series: i.series ? { from: i.seriesStart } : undefined }
             : { kind: "file", file: i.file!, title: i.title, ...base };
         const run = () => submitJob(input, (pct) => patch(i.key, { upload: pct }));
         try {
@@ -365,8 +392,14 @@ export function BatchComposer() {
 
   const ready = items.filter((i) => i.status === "ready");
   const probing = items.filter((i) => i.status === "probing").length;
-  const totalClips = ready.reduce((n, i) => n + Math.min(i.clipCount, clipCountRange(i.useRange ? i.rangeEnd - i.rangeStart : (i.duration ?? 0)).max), 0);
-  const footage = ready.reduce((n, i) => n + (i.useRange ? i.rangeEnd - i.rangeStart : (i.duration ?? 0)), 0);
+  const parts = (i: Item) => Math.max(1, Math.ceil(((i.duration ?? 0) - i.seriesStart) / SERIES_PART_SEC));
+  const totalClips = ready.reduce(
+    (n, i) =>
+      n +
+      Math.min(i.clipCount, clipCountRange(i.series ? SERIES_PART_SEC : i.useRange ? i.rangeEnd - i.rangeStart : (i.duration ?? 0)).max) * (i.series ? parts(i) : 1),
+    0
+  );
+  const footage = ready.reduce((n, i) => n + (i.series ? Math.max(0, (i.duration ?? 0) - i.seriesStart) : i.useRange ? i.rangeEnd - i.rangeStart : (i.duration ?? 0)), 0);
 
   return (
     <div>
@@ -531,5 +564,35 @@ export function BatchComposer() {
         </div>
       )}
     </div>
+  );
+}
+
+/** "Start at" time box for a series: edits freely, commits a valid time on blur. */
+function StartAt({ value, max, onChange }: { value: number; max: number; onChange: (v: number) => void }) {
+  const [text, setText] = useState(fmtTimestamp(value));
+  const [bad, setBad] = useState(false);
+  return (
+    <label className="mt-3 flex flex-wrap items-center gap-2">
+      <span>Start at</span>
+      <input
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value);
+          setBad(false);
+        }}
+        onBlur={() => {
+          const v = parseClock(text);
+          if (v == null || v < 0 || v > max - 60) {
+            setBad(true);
+            return;
+          }
+          onChange(v);
+          setText(fmtTimestamp(v));
+        }}
+        placeholder="0:00"
+        className={`w-24 rounded-lg border bg-ink-3 px-2.5 py-1.5 font-mono text-xs text-paper outline-none focus:border-ember ${bad ? "border-red-400" : "border-line-strong"}`}
+      />
+      <span className={bad ? "text-red-300" : ""}>{bad ? `Use a time like 1:25:00 before ${fmtTimestamp(max - 60)}` : `of ${fmtTimestamp(max)} — leave 0:00 to start from the beginning`}</span>
+    </label>
   );
 }

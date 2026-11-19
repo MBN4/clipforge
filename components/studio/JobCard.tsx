@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Clock, Hourglass, Link2, Scissors, Upload, X } from "lucide-react";
+import { Clock, Hourglass, Layers, Link2, Scissors, Upload, X } from "lucide-react";
+import { useDashboard } from "./DashboardProvider";
 import { fmtTimestamp } from "@/lib/clipCount";
 import { activeSeconds, etaSeconds, fmtClock, fmtDur, jobTitle, statusOf, isActive } from "@/lib/dashboard";
 import type { ClientJob } from "@/lib/serialize";
@@ -23,6 +24,7 @@ export function sourceLabel(job: ClientJob) {
 
 /** Full live card for the Queue tab. */
 export function JobCard({ job, now, line, onCancel }: { job: ClientJob; now: number; line?: number; onCancel: () => void }) {
+  const { seriesAction } = useDashboard();
   const { tone } = statusOf(job);
   const work = activeSeconds(job, now);
   const eta = etaSeconds(job, now);
@@ -48,7 +50,12 @@ export function JobCard({ job, now, line, onCancel }: { job: ClientJob; now: num
                       {job.sourceDuration ? ` of ${fmtTimestamp(job.sourceDuration)}` : ""}
                     </Chip>
                   ) : null}
-                  {job.request?.clipCount ? <Chip>{job.request.clipCount} clips</Chip> : null}
+                  {job.series ? (
+                    <Chip icon={Layers}>
+                      Part {job.series.index} · {fmtTimestamp(job.series.cursor)} of {fmtTimestamp(job.series.videoEnd)}
+                    </Chip>
+                  ) : null}
+                  {job.request?.clipCount ? <Chip>{job.request.clipCount} clips{job.series ? " per part" : ""}</Chip> : null}
                   {line != null && line > 0 && <Chip icon={Hourglass}>#{line + 1} in line</Chip>}
                 </div>
               </div>
@@ -84,7 +91,18 @@ export function JobCard({ job, now, line, onCancel }: { job: ClientJob; now: num
                   </>
                 )}
               </div>
-              {isActive(job) && <ConfirmButton label="Cancel" confirmLabel="Stop this video?" icon={X} onConfirm={onCancel} />}
+              <div className="flex items-center gap-3">
+                {isActive(job) && job.series?.status === "running" && job.series.cursor < job.series.videoEnd && (
+                  <button
+                    onClick={() => void seriesAction(job.id, { action: "stop" })}
+                    title="Finish this part, then don't start the next one"
+                    className="rounded-full border border-line-strong px-3 py-1.5 text-xs font-semibold text-paper-dim transition hover:border-white/35 hover:text-paper"
+                  >
+                    Stop after this part
+                  </button>
+                )}
+                {isActive(job) && <ConfirmButton label="Cancel" confirmLabel={job.series ? "Stop this part and the rest?" : "Stop this video?"} icon={X} onConfirm={onCancel} />}
+              </div>
             </div>
           </div>
         </div>

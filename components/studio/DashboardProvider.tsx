@@ -5,13 +5,14 @@ import { nanoid } from "nanoid";
 import { ToastStack, type ToastData } from "@/components/Toast";
 import { sfx } from "@/lib/sound";
 import { requestNotificationPermission, notifyJobDone } from "@/lib/notify";
-import { isActive } from "@/lib/dashboard";
+import { isActive, fmtDur } from "@/lib/dashboard";
+import { latestParts } from "@/lib/seriesClient";
 import type { ClientJob } from "@/lib/serialize";
 import type { SystemSnapshot } from "@/lib/scheduler";
 import type { ClipMode } from "@/lib/types";
 
 export type NewJobInput =
-  | { kind: "url"; url: string; title?: string; thumbnail?: string; duration?: number; clipCount: number; mode?: ClipMode; range?: { start: number; end: number } }
+  | { kind: "url"; url: string; title?: string; thumbnail?: string; duration?: number; clipCount: number; mode?: ClipMode; range?: { start: number; end: number }; /** clip a long video part by part, starting here (seconds) */ series?: { from: number } }
   | { kind: "file"; file: File; title: string; duration?: number; clipCount: number; mode?: ClipMode; range?: { start: number; end: number } };
 
 interface Dashboard {
@@ -23,6 +24,8 @@ interface Dashboard {
   submitJob: (input: NewJobInput, onProgress?: (pct: number) => void) => Promise<string>;
   cancelJob: (id: string) => Promise<void>;
   retryJob: (id: string) => Promise<void>;
+  /** decide what happens next for a long video clipped in parts (id = any part of it) */
+  seriesAction: (id: string, body: { action: "stop" } | { action: "continue"; skip?: { start: number; end: number } }) => Promise<boolean>;
   removeJob: (id: string) => Promise<void>;
   toast: (title: string, body?: string) => void;
 }
@@ -64,6 +67,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const [offline, setOffline] = useState(false);
   const [toasts, setToasts] = useState<ToastData[]>([]);
   const prevStages = useRef<Map<string, string> | null>(null);
+  const prevSeries = useRef<Map<string, string> | null>(null);
   const jobsRef = useRef<ClientJob[]>([]);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const inflight = useRef<Promise<void> | null>(null);
@@ -95,6 +99,25 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           }
         }
       }
+      // long videos clipped in parts: tell the user when a decision is needed or the whole video is done
+      const seriesNow = new Map<string, string>();
+      for (const [sid, j] of latestParts(next)) {
+        const s = j.series!;
+        const key = `${s.status}:${s.pausedFor ?? ""}`;
+        seriesNow.set(sid, key);
+        const was = prevSeries.current?.get(sid);
+        if (!prevSeries.current || was === key) continue;
+        if (s.status === "paused" && s.pausedFor === "batch") {
+          sfx.jobDone();
+          toast(`${fmtDur(s.batchSec)} clipped — keep going?`, `${s.baseTitle}: continue with the next ${fmtDur(s.batchSec)}, skip a part, or stop.`);
+          notifyJobDone("Clipforge", `${s.baseTitle}: ${fmtDur(s.batchSec)} done. Continue with the next part?`);
+        } else if (s.status === "complete") {
+          sfx.jobDone();
+          toast(`${s.baseTitle} is fully clipped`, `All ${j.series!.index} parts are in your Library.`);
+          notifyJobDone("Clipforge", `${s.baseTitle}: the whole video is clipped`);
+        }
+      }
+      prevSeries.current = seriesNow;
       prevStages.current = new Map(next.map((j) => [j.id, j.stage]));
     },
     [toast]
@@ -167,6 +190,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
             mode: input.mode,
             rangeStart: input.range?.start,
             rangeEnd: input.range?.end,
+            series: input.series,
           }),
         });
         const data = await res.json().catch(() => ({}));
@@ -203,6 +227,17 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     [refresh, toast]
   );
 
+  const seriesAction = useCallback(
+    async (id: string, body: { action: "stop" } | { action: "continue"; skip?: { start: number; end: number } }) => {
+      const res = await fetch(`/api/jobs/${id}/series`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) toast("That didn't work", data.error);
+      await refresh();
+      return res.ok;
+    },
+    [refresh, toast]
+  );
+
   const cancelJob = useCallback((id: string) => act(`/api/jobs/${id}/cancel`, "POST", "Couldn't cancel that video"), [act]);
   const retryJob = useCallback((id: string) => act(`/api/jobs/${id}/retry`, "POST", "Couldn't retry that video"), [act]);
   const removeJob = useCallback(
@@ -214,8 +249,8 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<Dashboard>(
-    () => ({ jobs, system, loaded, offline, refresh, submitJob, cancelJob, retryJob, removeJob, toast }),
-    [jobs, system, loaded, offline, refresh, submitJob, cancelJob, retryJob, removeJob, toast]
+    () => ({ jobs, system, loaded, offline, refresh, submitJob, cancelJob, retryJob, seriesAction, removeJob, toast }),
+    [jobs, system, loaded, offline, refresh, submitJob, cancelJob, retryJob, seriesAction, removeJob, toast]
   );
 
   return (
