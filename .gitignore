@@ -47,3 +47,6 @@ dev.log
 
 # local tools installed by `npm run setup`
 /bin/
+
+# local Python virtualenv (faster-whisper)
+/venv/
