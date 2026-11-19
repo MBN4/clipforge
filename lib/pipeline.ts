@@ -4,7 +4,7 @@ import { nanoid } from "nanoid";
 import { updateJob, getJob } from "./store";
 import { runInContext, withSlot, throwIfCancelled, isCancelled, cancelRequested, blockedMs, RENDER_WEIGHT, TRANSCRIBE_WEIGHT } from "./scheduler";
 import { ensureDir, jobDir, clipsDir } from "./paths";
-import { downloadFromUrl, fetchHeatmap, type TimeRange } from "./download";
+import { AUTO_WINDOW, MAX_WHOLE_DOWNLOAD, bestWindow, downloadFromUrl, explainDownloadError, fetchHeatmap, formatLength, type TimeRange } from "./download";
 import { probe, trimSource, extractThumb } from "./ffmpeg";
 import { toFileUrl } from "./url";
 import { transcribe } from "./transcribe";
@@ -48,10 +48,11 @@ async function pipelineBody(
   sourceUrl: string | null,
   uploadedPath: string | null,
   requestedClipCount: number | undefined,
-  range: TimeRange | undefined,
+  requestedRange: TimeRange | undefined,
   mode: ClipMode,
   waitedMs: () => number
 ) {
+  let range = requestedRange;
   const dir = jobDir(jobId);
   const clipsOut = clipsDir(jobId);
   ensureDir(dir);
@@ -75,16 +76,38 @@ async function pipelineBody(
 
     enter("downloading", { progress: 8, message: sourceUrl ? "Fetching video…" : "Preparing video…" });
     if (sourceUrl) {
+      // A finished live stream can be 10+ hours: downloading it whole never finishes. Slice it instead —
+      // the user's range if they chose one, otherwise the most-watched stretch.
+      const fullLength = getJob(jobId)?.sourceDuration;
+      let fetchNote = "Fetching video…";
+      if (fullLength && fullLength > MAX_WHOLE_DOWNLOAD) {
+        if (!range) {
+          updateJob(jobId, { message: "Long video — finding its most-watched stretch…" });
+          const heat = await fetchHeatmap(sourceUrl).catch(() => []);
+          // no "most replayed" graph (common for stream recordings): start from the beginning instead of failing
+          const auto = bestWindow(heat, fullLength, AUTO_WINDOW) ?? { start: 0, end: AUTO_WINDOW };
+          range = auto;
+          fetchNote = heat.length
+            ? `Long video (${formatLength(fullLength)}) — fetching its most-watched ${formatLength(AUTO_WINDOW)}…`
+            : `Long video (${formatLength(fullLength)}) — fetching the first ${formatLength(AUTO_WINDOW)} (choose a range for another part)…`;
+          updateJob(jobId, { message: fetchNote });
+          const req = getJob(jobId)?.request;
+          updateJob(jobId, { request: { ...req, range: auto } });
+        } else if (range.end - range.start > MAX_WHOLE_DOWNLOAD) {
+          throw new Error(`The chosen range is longer than ${formatLength(MAX_WHOLE_DOWNLOAD)}. Pick a shorter stretch of this ${formatLength(fullLength)} video and try again.`);
+        }
+      }
       try {
         sourcePath = await withSlot("download", 1, priority, () => {
-          updateJob(jobId, { waiting: false, waitedMs: waitedMs(), message: "Fetching video…" });
+          updateJob(jobId, { waiting: false, waitedMs: waitedMs(), message: fetchNote });
           // slicing with --download-sections only pays off for a small piece of a very long video
           const total = getJob(jobId)?.sourceDuration;
-          const useSections = !!range && !!total && total >= 1200 && range.end - range.start <= total * 0.3;
+          const useSections = !!range && !!total && total >= 1200 && (range.end - range.start <= total * 0.3 || total > MAX_WHOLE_DOWNLOAD);
           let shown = 8;
           return downloadFromUrl(sourceUrl, dir, {
             range,
             useSections,
+            noFullFallback: !!total && total > MAX_WHOLE_DOWNLOAD,
             onProgress: (pct, speed) => {
               shown = Math.max(shown, 8 + Math.round(pct * 0.16)); // download fills the 8–24% band
               updateJob(jobId, { progress: shown, message: `Downloading ${Math.round(pct)}%${speed ? ` · ${speed}` : ""}` });
@@ -94,12 +117,9 @@ async function pipelineBody(
       } catch (e: any) {
         if (isCancelled(e) || cancelRequested()) throw e;
         console.error("[pipeline] download failed", e);
-        // a missing yt-dlp or a frozen connection deserves its own message, not the generic one below
+        // a missing yt-dlp deserves its own message; otherwise say what yt-dlp actually complained about
         if (e?.code === "ENOENT") throw e;
-        if (/stalled/.test(e?.message ?? "")) throw new Error("The download stalled — no data arrived for over a minute. Check your connection and hit Retry.");
-        throw new Error(
-          "Couldn't fetch that video. The link may be private, age-restricted, or the platform blocked the request — try a direct upload instead."
-        );
+        throw new Error(explainDownloadError(e?.message ?? ""));
       }
     } else if (uploadedPath) {
       sourcePath = uploadedPath;

@@ -10,6 +10,7 @@ import {
   type CaptionChunk,
   type CaptionStyle,
 } from "@/lib/captions";
+import { Select } from "@/components/ui/Select";
 import { CAPTION_FONT_GROUPS, CAPTION_FONT_LIST, captionFontCss, getCaptionFont } from "@/lib/captionFonts";
 
 export interface CaptionGenState {
@@ -241,12 +242,14 @@ export function CaptionsPanel({
         </div>
         <button
           onClick={() => onToggle(!enabled)}
+          role="switch"
+          aria-checked={enabled}
           aria-label="Toggle captions"
-          className={`h-6 w-11 shrink-0 rounded-full transition ${enabled ? "bg-ember" : "bg-ink-3"}`}
+          className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${enabled ? "bg-ember" : "bg-ink-3"}`}
         >
           <span
-            className={`block h-5 w-5 translate-y-0.5 rounded-full bg-paper transition ${
-              enabled ? "translate-x-5" : "translate-x-0.5"
+            className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-paper shadow transition-transform ${
+              enabled ? "translate-x-5" : "translate-x-0"
             }`}
           />
         </button>
@@ -261,20 +264,12 @@ export function CaptionsPanel({
                 : "Transcribe the speech in this clip into word-timed, animated captions."}
             </p>
             <div className="grid grid-cols-2 gap-2">
-              <label className="block">
+              <div>
                 <span className="text-[11px] text-paper-dim">Spoken language</span>
-                <select
-                  value={language}
-                  onChange={(e) => setLanguage(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-line-strong bg-ink-3 px-2 py-1.5 text-xs text-paper"
-                >
-                  {LANGUAGES.map(([code, name]) => (
-                    <option key={code} value={code}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                <div className="mt-1">
+                  <Select size="sm" value={language} onChange={setLanguage} ariaLabel="Spoken language" options={LANGUAGES.map(([value, label]) => ({ value, label }))} />
+                </div>
+              </div>
               <div>
                 <span className="text-[11px] text-paper-dim">Accuracy</span>
                 <div className="mt-1 inline-flex w-full rounded-lg border border-line-strong bg-ink-3 p-0.5">

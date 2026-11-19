@@ -113,6 +113,28 @@ few concurrent users). Output files, raw per-clip segments (the editor's
 working source), and uploaded music live under `storage/jobs/<id>/` and are
 streamed through `/api/files/*`.
 
+## Long videos and finished live streams
+
+Videos longer than 2 hours are never downloaded whole (a 10-hour stream recording would never
+finish). Pick a start and end in the range picker, or leave it empty and Clipforge fetches the
+video's most-watched 30 minutes (YouTube's "most replayed" graph). Recordings with no graph,
+which is common for streams, start from the beginning. Failed downloads now say why (private,
+age-restricted, bot check, stream not ended…).
+
+## Library
+
+Tick clips on a clip card (or **Select all**) to **Delete** them or **Add captions** in bulk.
+Bulk captions transcribes each clip and burns your chosen style in. **Delete all** removes every
+clip currently shown, files included.
+
+## Python virtualenv
+
+If a `venv/` (or `.venv/`) folder sits in the project, Clipforge uses its Python for
+`faster-whisper` automatically. `npm run dev` is fine with it, but **`npm run build` fails**
+while a virtualenv is inside the project folder (Turbopack follows the venv's symlinks out of the
+project). Keep the venv elsewhere and point `CLIPFORGE_PYTHON` at its `python` for production
+builds.
+
 ## Animated captions
 
 The editor's **Captions** tab gives you full control of how captions look and

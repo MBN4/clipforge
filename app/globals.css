@@ -507,3 +507,9 @@ html[data-site-font] {
   --font-mono-custom: var(--site-font);
   font-synthesis: none;
 }
+
+/* slim, dark scrollbars everywhere (the browser default is a bright slab on this theme) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(245, 239, 227, 0.22) transparent;
+}

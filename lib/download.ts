@@ -58,6 +58,54 @@ function toTimestamp(seconds: number): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
+/** Videos longer than this are never downloaded whole — only a slice of them is. */
+export const MAX_WHOLE_DOWNLOAD = 2 * 3600;
+/** How much of a very long video to take when the user didn't choose a range. */
+export const AUTO_WINDOW = 30 * 60;
+
+export function formatLength(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return h ? `${h}h ${m}m` : `${m}m`;
+}
+
+/** The `windowSec`-long stretch with the most "replay" heat — where a long stream's best moments cluster. */
+export function bestWindow(heat: HeatPoint[], total: number, windowSec: number): TimeRange | null {
+  if (!heat.length || total <= windowSec) return null;
+  const STEP = 60;
+  let best: TimeRange | null = null;
+  let bestScore = -1;
+  for (let start = 0; start + windowSec <= total + STEP; start += STEP) {
+    const s = Math.min(start, total - windowSec);
+    const e = s + windowSec;
+    let score = 0;
+    for (const p of heat) {
+      const overlap = Math.min(e, p.end) - Math.max(s, p.start);
+      if (overlap > 0) score += p.value * overlap;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      best = { start: s, end: e };
+    }
+  }
+  return best;
+}
+
+/** A readable reason for a failed download, from yt-dlp's own error text. */
+export function explainDownloadError(message: string): string {
+  const m = message || "";
+  if (/stalled/.test(m)) return "The download stalled — no data arrived for over a minute. Check your connection and hit Retry.";
+  if (/Sign in to confirm|not a bot/i.test(m)) return "YouTube wants a sign-in (bot check) for this video from your connection. Try again later, or upload the file directly.";
+  if (/Private video|members-only|Join this channel/i.test(m)) return "That video is private or members-only, so it can't be downloaded.";
+  if (/confirm your age|age-restricted|inappropriate for some users/i.test(m)) return "That video is age-restricted, so it can't be downloaded without signing in.";
+  if (/live event will begin|Premieres in|is upcoming|This live event/i.test(m)) return "That stream hasn't started yet. Try again once it's live or finished.";
+  if (/is a live stream|live stream recording is not available|currently live/i.test(m)) return "That stream is still live or its recording isn't available yet. Try again after it ends.";
+  if (/Video unavailable|has been removed|no longer available|does not exist/i.test(m)) return "That video is unavailable (removed or region-blocked).";
+  if (/HTTP Error 4(03|29)/.test(m)) return "The platform blocked or rate-limited the download. Wait a few minutes and hit Retry.";
+  if (/Requested format is not available/i.test(m)) return "No downloadable format was found for that video.";
+  return "Couldn't fetch that video. The link may be private, age-restricted, or the platform blocked the request — try a direct upload instead.";
+}
+
 export interface TimeRange {
   start: number;
   end: number;
@@ -70,6 +118,8 @@ export interface DownloadOptions {
    * through ffmpeg, which is slow and can hang, so it's only worth it for a small slice of a very long video.
    */
   useSections?: boolean;
+  /** Never fall back to downloading the whole video if the slice fails (it would be hours long). */
+  noFullFallback?: boolean;
   /** download progress: percent of the current stream, and the transfer speed (e.g. "4.2MiB/s") */
   onProgress?: (pct: number, speed?: string) => void;
 }
@@ -124,7 +174,7 @@ async function ytdlp(url: string, destDir: string, extra: string[], onProgress?:
 }
 
 export async function downloadFromUrl(url: string, destDir: string, opts: DownloadOptions = {}): Promise<string> {
-  const { range, useSections, onProgress } = opts;
+  const { range, useSections, noFullFallback, onProgress } = opts;
 
   if (range && useSections) {
     try {
@@ -132,7 +182,7 @@ export async function downloadFromUrl(url: string, destDir: string, opts: Downlo
       await ytdlp(url, destDir, ["--download-sections", `*${toTimestamp(range.start)}-${toTimestamp(range.end)}`], onProgress);
       return findSource(destDir);
     } catch (e) {
-      if (cancelRequested()) throw e;
+      if (cancelRequested() || noFullFallback) throw e;
       console.warn("[download] section download failed, falling back to the full video:", e instanceof Error ? e.message : e);
     }
   }
