@@ -61,7 +61,10 @@ export async function transcribe(sourcePath: string, workDir: string, duration: 
 
   const outJson = path.join(workDir, "transcript.raw.json");
   const scriptPath = path.join(process.cwd(), "scripts", "transcribe.py");
-  const { code, stderr } = await runPython([scriptPath, audioPath, outJson]);
+  // Long videos get the tiny model: ~3-4x faster than base, plenty to find highlights (captions can be
+  // regenerated per clip at higher accuracy in the editor). Override with TRANSCRIBE_MODEL.
+  const model = process.env.TRANSCRIBE_MODEL || (duration > 20 * 60 ? "tiny" : "base");
+  const { code, stderr } = await runPython([scriptPath, audioPath, outJson, model]);
 
   if (code === 0 && fs.existsSync(outJson)) {
     const parsed = JSON.parse(fs.readFileSync(outJson, "utf-8"));

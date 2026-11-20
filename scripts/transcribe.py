@@ -35,7 +35,7 @@ def main():
             model_size,
             device="cpu",
             compute_type="int8",
-            cpu_threads=os.cpu_count() or 4,
+            cpu_threads=max(1, (os.cpu_count() or 4) // 2),  # logical CPUs are usually 2x physical cores; more threads just thrash
         )
         # Highlight-picking just needs decent timing + rough text, not
         # publication-quality transcripts — beam_size=1 (greedy) instead of
