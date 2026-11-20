@@ -16,7 +16,7 @@ export class NotSliceable extends Error {}
 const CHUNK = 8 * 1024 * 1024;
 const PARALLEL = 4;
 const HEAD = 2 * 1024 * 1024; // enough for ftyp + moov + sidx of even a 10-hour video
-const FORMAT = "bv*[height<=1080][ext=mp4]+ba[ext=m4a]";
+const FORMAT = "bv*[height<=1080][ext=mp4][protocol=https]+ba[ext=m4a][protocol=https]";
 
 interface Stream {
   url: string;

@@ -146,7 +146,7 @@ async function ytdlp(url: string, destDir: string, extra: string[], onProgress?:
   const args = [
     "--no-playlist",
     "-f",
-    "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b",
+    "bv*[height<=1080][ext=mp4][protocol=https]+ba[ext=m4a][protocol=https]/bv*[height<=1080][ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b",
     "--merge-output-format",
     "mp4",
     "--no-warnings",
