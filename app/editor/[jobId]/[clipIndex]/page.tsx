@@ -28,6 +28,8 @@ import { nanoid } from "nanoid";
 import { buildTimeline, normalizeRanges } from "@/lib/timeline";
 import { DEFAULT_AUDIO, DEFAULT_FILTERS, DEFAULT_POLISH } from "@/lib/editSpec";
 import { sfx } from "@/lib/sound";
+import { QUALITIES, normalizeQuality, type Quality } from "@/lib/quality";
+import { Select } from "@/components/ui/Select";
 import type { TextOverlaySpec, StickerSpec, CropSpec, FilterSpec, Word, AudioSpec, PolishSpec, LayoutMode } from "@/lib/types";
 
 interface ClipData {
@@ -109,6 +111,7 @@ export default function EditorPage() {
   const [currentTime, setCurrentTime] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [quality, setQuality] = useState<Quality>(1080);
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportedUrl, setExportedUrl] = useState<string | null>(null);
   const [wordsPerCaption, setWordsPerCaption] = useState(DEFAULT_WORDS_PER_CAPTION);
@@ -151,6 +154,7 @@ export default function EditorPage() {
         return;
       }
       const data = await res.json();
+      setQuality(normalizeQuality(data.job.request?.quality));
       const found = data.job.clips.find((c: any) => c.index === clipIndex);
       if (!found) {
         setLoadError("Couldn't find that clip.");
@@ -262,6 +266,7 @@ export default function EditorPage() {
         audio: state.audio,
         polish: state.polish,
         layout: state.layout,
+        quality,
         music: state.music
           ? { path: state.music.path, volume: state.music.volume, duckOriginal: state.music.duckOriginal }
           : null,
@@ -340,6 +345,17 @@ export default function EditorPage() {
           <Logo />
         </Link>
         <p className="hidden truncate font-mono text-xs text-paper-dim sm:block">{clip.title}</p>
+        <div className="flex items-center gap-3">
+        <div className="hidden w-44 sm:block">
+          <Select
+            size="sm"
+            ariaLabel="Export quality"
+            value={String(quality)}
+            onChange={(v) => setQuality(Number(v) as Quality)}
+            options={QUALITIES.map((q) => ({ value: String(q.key), label: q.label, hint: `${q.key}×${Math.round((q.key * 16) / 9 / 2) * 2}` }))}
+            menuWidth={230}
+          />
+        </div>
         <button
           onClick={handleExport}
           disabled={exporting}
@@ -347,6 +363,7 @@ export default function EditorPage() {
         >
           {exporting ? "Exporting…" : "Export"}
         </button>
+        </div>
       </header>
 
       <div className="flex min-h-0 flex-1">

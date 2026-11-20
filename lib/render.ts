@@ -3,6 +3,7 @@ import fs from "node:fs";
 import { ffmpeg } from "./ffmpeg";
 import { buildAssFromWords } from "./captions";
 import { CAPTION_FONTS_DIR } from "./paths";
+import { qualityDims, type Quality } from "./quality";
 import type { Word } from "./types";
 
 export interface RenderClipInput {
@@ -12,6 +13,7 @@ export interface RenderClipInput {
   words: Word[];
   outDir: string;
   baseName: string;
+  quality?: Quality;
 }
 
 export interface RenderClipOutput {
@@ -25,6 +27,7 @@ function escapeForFilter(p: string) {
 
 export async function renderClip(input: RenderClipInput): Promise<RenderClipOutput> {
   const { sourcePath, start, end, words, outDir, baseName } = input;
+  const { w: W, h: H } = qualityDims(input.quality ?? 1080);
   const duration = Math.max(1, end - start);
   const videoPath = path.join(outDir, `${baseName}.mp4`);
   const thumbPath = path.join(outDir, `${baseName}.jpg`);
@@ -42,8 +45,8 @@ export async function renderClip(input: RenderClipInput): Promise<RenderClipOutp
     // count, so this is ~3x faster per clip with no visible quality loss
     // (the result is blurred anyway; upscaling a blurred image doesn't
     // reveal the lower source resolution).
-    "[bgsrc]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,boxblur=8:2,eq=brightness=-0.08:saturation=1.15,scale=1080:1920[bg]",
-    "[fgsrc]scale=1080:1920:force_original_aspect_ratio=decrease[fg]",
+    `[bgsrc]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,boxblur=8:2,eq=brightness=-0.08:saturation=1.15,scale=${W}:${H}[bg]`,
+    `[fgsrc]scale=${W}:${H}:force_original_aspect_ratio=decrease[fg]`,
     "[bg][fg]overlay=(W-w)/2:(H-h)/2[base]",
   ];
 

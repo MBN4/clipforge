@@ -104,7 +104,7 @@ export interface Job {
   title?: string;
   thumbnail?: string;
   /** What the user asked for; kept so a failed job can be retried as-is. */
-  request?: { clipCount?: number; range?: { start: number; end: number }; mode?: ClipMode };
+  request?: { clipCount?: number; range?: { start: number; end: number }; mode?: ClipMode; quality?: number };
   /** How the clips were actually chosen (peaks mode falls back from heatmap to audio to transcript). */
   pickMethod?: "heatmap" | "audio" | "transcript";
   /** When the pipeline actually began / ended (createdAt is when it was submitted). */
@@ -221,4 +221,6 @@ export interface ExportSpec {
   audio?: AudioSpec;
   polish?: PolishSpec;
   layout?: LayoutMode;
+  /** output width in px: 720, 1080 (default), 1440 or 2160 */
+  quality?: number;
 }

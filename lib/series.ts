@@ -64,7 +64,7 @@ export function startNextPart(seriesId: string, run: RunFn): boolean {
     title: `${s.baseTitle} · Part ${index}`,
     thumbnail: last.thumbnail,
     sourceDuration: s.videoEnd,
-    request: { clipCount: last.request?.clipCount, range, mode: last.request?.mode },
+    request: { clipCount: last.request?.clipCount, range, mode: last.request?.mode, quality: last.request?.quality },
     stage: "queued",
     progress: 2,
     message: "Queued…",
