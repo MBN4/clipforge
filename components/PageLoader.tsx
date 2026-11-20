@@ -106,6 +106,7 @@ export function PageLoader() {
   const prevPath = useRef(pathname);
   const hideTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const stallTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const curtainUp = useRef(false); // the curtain was already dropped by a link click
 
   // first load / refresh
   useEffect(() => {
@@ -142,6 +143,7 @@ export function PageLoader() {
       if (url.origin !== location.origin || url.pathname === location.pathname) return;
       if (inStudio(url.pathname) && inStudio(location.pathname)) return;
       clearTimeout(hideTimer.current);
+      curtainUp.current = true;
       setBoot(false);
       setRun((n) => n + 1);
       setVisible(true);
@@ -164,7 +166,9 @@ export function PageLoader() {
     clearTimeout(stallTimer.current);
     clearTimeout(hideTimer.current);
     setBoot(false);
-    setRun((n) => n + 1);
+    // a link click already dropped the curtain: keep that one (a new key would replay it a second time)
+    if (!curtainUp.current) setRun((n) => n + 1);
+    curtainUp.current = false;
     setVisible(true);
     hideTimer.current = setTimeout(() => setVisible(false), reduce ? 200 : NAV_MS);
     return () => clearTimeout(hideTimer.current);
