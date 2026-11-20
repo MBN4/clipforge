@@ -134,6 +134,8 @@ export async function ffmpeg(args: string[]) {
 /** Fast stream-copy trim (no re-encode) — used to scope a long upload down to
  * the range the user asked about before transcription/rendering touch it. */
 export async function trimSource(sourcePath: string, start: number, end: number, outPath: string) {
+  // 1440p/4K downloads are VP9/AV1 + Opus in MKV; Opus can't be copied into an .mp4, so re-encode just the audio
+  const toMp4 = /\.mp4$/i.test(outPath) && !/\.(mp4|m4v|mov)$/i.test(sourcePath);
   await ffmpeg([
     "-ss",
     String(Math.max(0, start)),
@@ -143,6 +145,7 @@ export async function trimSource(sourcePath: string, start: number, end: number,
     String(Math.max(end - start, 1)),
     "-c",
     "copy",
+    ...(toMp4 ? ["-c:a", "aac", "-b:a", "192k"] : []),
     "-avoid_negative_ts",
     "make_zero",
     outPath,

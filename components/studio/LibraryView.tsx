@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
-import { ArrowRight, Captions, Clapperboard, Loader, Search, Trash2, X } from "lucide-react";
+import { ArrowRight, Captions, Clapperboard, Download, Loader, Search, Trash2, X } from "lucide-react";
 import { useDashboard } from "./DashboardProvider";
 import { ClipCard } from "./ClipCard";
 import { Select } from "@/components/ui/Select";
@@ -68,6 +68,22 @@ export function LibraryView() {
   }
   const selectAll = () => setPicked(new Set(visibleKeys));
   const clearPicked = () => setPicked(new Set());
+
+  // a real form post, so the browser streams the zip to disk instead of holding it in memory
+  function downloadZip(list: { clip: { index: number }; job: { id: string } }[]) {
+    if (!list.length) return;
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = "/api/library/download";
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = "items";
+    input.value = list.map(({ clip, job }) => keyOf(job.id, clip.index)).join(",");
+    form.appendChild(input);
+    document.body.appendChild(form);
+    form.submit();
+    form.remove();
+  }
 
   async function deleteChosen(what: "selected" | "all") {
     const targets = what === "all" ? clips : chosen;
@@ -178,6 +194,12 @@ export function LibraryView() {
                 {chosen.length > 0 && (
                   <>
                     <button
+                      onClick={() => downloadZip(chosen)}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-ember px-3.5 py-1.5 text-xs font-semibold text-ink transition hover:brightness-110"
+                    >
+                      <Download className="h-3.5 w-3.5" /> Download {chosen.length > 1 ? `${chosen.length} (.zip)` : ""}
+                    </button>
+                    <button
                       onClick={() => setCaptioning(true)}
                       className="inline-flex items-center gap-1.5 rounded-full bg-paper px-3.5 py-1.5 text-xs font-semibold text-ink transition hover:bg-ember"
                     >
@@ -194,6 +216,14 @@ export function LibraryView() {
                       Clear
                     </button>
                   </>
+                )}
+                {chosen.length === 0 && (
+                  <button
+                    onClick={() => downloadZip(clips)}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-line-strong px-3.5 py-1.5 text-xs font-semibold text-paper transition hover:border-white/35"
+                  >
+                    <Download className="h-3.5 w-3.5" /> Download all (.zip)
+                  </button>
                 )}
                 <button
                   onClick={() => deleteChosen("all")}

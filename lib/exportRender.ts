@@ -6,6 +6,7 @@ import { CAPTION_FONTS_DIR } from "./paths";
 import { writeStickerSvg } from "./stickers";
 import { buildTimeline } from "./timeline";
 import { normalizeAudio, normalizeFilters, normalizeLayout, normalizePolish } from "./editSpec";
+import { normalizeQuality, qualityDims } from "./quality";
 import type { ExportSpec } from "./types";
 
 function escapeForFilterPath(p: string) {
@@ -58,6 +59,8 @@ const hex0x = (c: string) => `0x${c.replace("#", "")}`;
 
 export async function exportClip({ rawPath, outDir, baseName, spec }: ExportInput): Promise<ExportOutput> {
   const { trim, crop, captions, textOverlays, stickers, music } = spec;
+  // output size: everything below is laid out for 1080x1920 and scaled by k for other qualities
+  const { w: W, h: H, k } = qualityDims(normalizeQuality(spec.quality));
   const filters = normalizeFilters(spec.filters);
   const audio = normalizeAudio(spec.audio);
   const polish = normalizePolish(spec.polish);
@@ -119,18 +122,18 @@ export async function exportClip({ rawPath, outDir, baseName, spec }: ExportInpu
   if (layout === "fit") {
     videoFilters.push(`[${vLabel}]split=2[fbg][ffg]`);
     videoFilters.push(
-      `[fbg]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,gblur=sigma=36,eq=brightness=-0.1:saturation=1.2[fbgb]`
+      `[fbg]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},gblur=sigma=${Math.round(36 * k)},eq=brightness=-0.1:saturation=1.2[fbgb]`
     );
-    videoFilters.push(`[ffg]scale=1080:-2[ffgs]`);
+    videoFilters.push(`[ffg]scale=${W}:-2[ffgs]`);
     videoFilters.push(`[fbgb][ffgs]overlay=x=(W-w)/2:y=(H-h)/2[cropped]`);
   } else {
     const zoom = Math.max(1, crop.zoom || 1);
     const fx = Math.min(1, Math.max(0, crop.x));
     const fy = Math.min(1, Math.max(0, crop.y));
     videoFilters.push(
-      `[${vLabel}]scale=1080:1920:force_original_aspect_ratio=increase,` +
+      `[${vLabel}]scale=${W}:${H}:force_original_aspect_ratio=increase,` +
         `scale=trunc(iw*${zoom}/2)*2:trunc(ih*${zoom}/2)*2,` +
-        `crop=1080:1920:x='(iw-1080)*${fx}':y='(ih-1920)*${fy}'[cropped]`
+        `crop=${W}:${H}:x='(iw-${W})*${fx}':y='(ih-${H})*${fy}'[cropped]`
     );
   }
   vLabel = "cropped";
@@ -160,12 +163,12 @@ export async function exportClip({ rawPath, outDir, baseName, spec }: ExportInpu
     tmpFiles.push(svgPath);
     const inputIdx = nextInputIndex++;
     inputs.push("-i", svgPath);
-    const sizePx = Math.max(20, st.size);
+    const sizePx = Math.max(20, st.size) * k;
     const outLabel = `stk${inputIdx}`;
     videoFilters.push(`[${inputIdx}:v]scale=${Math.round(sizePx)}:${Math.round(sizePx)}[${outLabel}src]`);
     const nextLabel = `ov${inputIdx}`;
-    const x = `(${st.x}*1080-${sizePx / 2})`;
-    const y = `(${st.y}*1920-${sizePx / 2})`;
+    const x = `(${st.x}*${W}-${sizePx / 2})`;
+    const y = `(${st.y}*${H}-${sizePx / 2})`;
     videoFilters.push(
       `[${vLabel}][${outLabel}src]overlay=x='${x}':y='${y}':enable='between(t,${sec(win.start)},${sec(win.end)})'[${nextLabel}]`
     );
@@ -177,12 +180,12 @@ export async function exportClip({ rawPath, outDir, baseName, spec }: ExportInpu
     const win = tl.mapWindow(t.start, t.end);
     if (!win) return;
     const nextLabel = `txt${i}`;
-    const x = `(${t.x}*1080-text_w/2)`;
-    const y = `(${t.y}*1920-text_h/2)`;
+    const x = `(${t.x}*${W}-text_w/2)`;
+    const y = `(${t.y}*${H}-text_h/2)`;
     videoFilters.push(
       `[${vLabel}]drawtext=fontfile=${escapeForFilterPath(overlayFontFile())}:text='${escapeDrawtext(
         t.text
-      )}':fontsize=${Math.round(t.fontSize)}:fontcolor=${t.color}:borderw=3:bordercolor=black@0.6:x='${x}':y='${y}':enable='between(t,${sec(
+      )}':fontsize=${Math.round(t.fontSize * k)}:fontcolor=${t.color}:borderw=${Math.max(1, Math.round(3 * k))}:bordercolor=black@0.6:x='${x}':y='${y}':enable='between(t,${sec(
         win.start
       )},${sec(win.end)})'[${nextLabel}]`
     );
@@ -217,7 +220,7 @@ export async function exportClip({ rawPath, outDir, baseName, spec }: ExportInpu
   if (polish.progressBar.enabled) {
     const pb = polish.progressBar;
     const inputIdx = nextInputIndex++;
-    inputs.push("-f", "lavfi", "-i", `color=c=${hex0x(pb.color)}:s=1080x${pb.height}:r=30`);
+    inputs.push("-f", "lavfi", "-i", `color=c=${hex0x(pb.color)}:s=${W}x${Math.max(2, Math.round(pb.height * k))}:r=30`);
     const y = pb.position === "top" ? "0" : "H-h";
     videoFilters.push(`[${vLabel}][${inputIdx}:v]overlay=x='-w+w*t/${sec(D)}':y=${y}:shortest=1[pbar]`);
     vLabel = "pbar";

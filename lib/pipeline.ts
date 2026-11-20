@@ -12,6 +12,7 @@ import { selectHighlights, type SelectedClip } from "./highlights";
 import { audioEnergyCurve, heatmapToCurve, peaksToClips, pickPeaks, sentenceBoundaries, type PeakSource } from "./peaks";
 import { aiRankHighlights } from "./ai";
 import { renderClip } from "./render";
+import { normalizeQuality } from "./quality";
 import { clampClipCount } from "./clipCount";
 import { afterPartDone, onPartFailed } from "./series";
 import type { ClipMode, ClipResult, JobStage, Transcript } from "./types";
@@ -108,6 +109,7 @@ async function pipelineBody(
           return downloadFromUrl(sourceUrl, dir, {
             range,
             useSections,
+            maxHeight: normalizeQuality(getJob(jobId)?.request?.quality),
             noFullFallback: !!total && total > MAX_WHOLE_DOWNLOAD,
             onProgress: (pct, speed) => {
               shown = Math.max(shown, 8 + Math.round(pct * 0.16)); // download fills the 8–24% band
@@ -200,6 +202,7 @@ async function pipelineBody(
             words: c.words,
             outDir: clipsOut,
             baseName,
+            quality: normalizeQuality(getJob(jobId)?.request?.quality),
           }),
           // Also keep an uncropped, unedited copy of just this window — the
           // editor works from this rather than the polished render, since the

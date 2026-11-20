@@ -122,6 +122,8 @@ export interface DownloadOptions {
   useSections?: boolean;
   /** Never fall back to downloading the whole video if the slice fails (it would be hours long). */
   noFullFallback?: boolean;
+  /** Largest source height to fetch (720, 1080, 1440 or 2160). Defaults to 1080. */
+  maxHeight?: number;
   /** download progress: percent of the current stream, and the transfer speed (e.g. "4.2MiB/s") */
   onProgress?: (pct: number, speed?: string) => void;
 }
@@ -142,13 +144,28 @@ function findSource(destDir: string): string {
   return path.join(destDir, files[0]);
 }
 
-async function ytdlp(url: string, destDir: string, extra: string[], onProgress?: DownloadOptions["onProgress"], stallMs = STALL_MS) {
+function formatSelector(h: number): { f: string; container: "mp4" | "mkv" } {
+  // up to 1080p, MP4/H.264 streams exist for everything; above that YouTube only has VP9/AV1, which need MKV
+  if (h <= 1080) {
+    return {
+      f: `bv*[height<=${h}][ext=mp4][protocol=https]+ba[ext=m4a][protocol=https]/bv*[height<=${h}][ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b`,
+      container: "mp4",
+    };
+  }
+  return {
+    f: `bv*[height<=${h}][protocol=https]+ba[protocol=https]/bv*[height<=${h}]+ba/bv*[height<=1080][ext=mp4]+ba[ext=m4a]/b`,
+    container: "mkv",
+  };
+}
+
+async function ytdlp(url: string, destDir: string, extra: string[], onProgress?: DownloadOptions["onProgress"], stallMs = STALL_MS, maxHeight = 1080) {
+  const sel = formatSelector(maxHeight);
   const args = [
     "--no-playlist",
     "-f",
-    "bv*[height<=1080][ext=mp4][protocol=https]+ba[ext=m4a][protocol=https]/bv*[height<=1080][ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b",
+    sel.f,
     "--merge-output-format",
-    "mp4",
+    sel.container,
     "--no-warnings",
     "--newline",
     "-N",
@@ -177,13 +194,14 @@ async function ytdlp(url: string, destDir: string, extra: string[], onProgress?:
 
 export async function downloadFromUrl(url: string, destDir: string, opts: DownloadOptions = {}): Promise<string> {
   const { range, useSections, noFullFallback, onProgress } = opts;
+  const maxHeight = opts.maxHeight ?? 1080;
 
   if (range && useSections) {
     // Fast path: fetch only the bytes of the window (see lib/dashSlice.ts). ffmpeg-based slicing crawls on
     // long videos, so it's only the fallback.
     try {
       clearPartials(destDir);
-      return await downloadSlice(url, destDir, range, onProgress);
+      return await downloadSlice(url, destDir, range, onProgress, maxHeight);
     } catch (e) {
       if (cancelRequested()) throw e;
       console.warn("[download] direct slice failed, trying yt-dlp sections:", e instanceof NotSliceable ? `not sliceable (${e.message})` : e);
@@ -191,7 +209,7 @@ export async function downloadFromUrl(url: string, destDir: string, opts: Downlo
     try {
       clearPartials(destDir);
       // ffmpeg may be silent for minutes while it seeks into a long stream, so be patient before calling it stalled
-      await ytdlp(url, destDir, ["--download-sections", `*${toTimestamp(range.start)}-${toTimestamp(range.end)}`], onProgress, 6 * 60_000);
+      await ytdlp(url, destDir, ["--download-sections", `*${toTimestamp(range.start)}-${toTimestamp(range.end)}`], onProgress, 6 * 60_000, maxHeight);
       return findSource(destDir);
     } catch (e) {
       if (cancelRequested() || noFullFallback) throw e;
@@ -201,7 +219,7 @@ export async function downloadFromUrl(url: string, destDir: string, opts: Downlo
 
   // The reliable path: download the whole video with the native downloader, then trim locally.
   clearPartials(destDir);
-  await ytdlp(url, destDir, [], onProgress);
+  await ytdlp(url, destDir, [], onProgress, STALL_MS, maxHeight);
   const full = findSource(destDir);
   if (!range) return full;
   const trimmed = path.join(destDir, `trimmed${path.extname(full) || ".mp4"}`);

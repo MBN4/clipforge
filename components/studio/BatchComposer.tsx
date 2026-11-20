@@ -4,6 +4,8 @@ import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Activity, AlertTriangle, ArrowRight, Clapperboard, Clock, FileVideo, Flame, Link2, Loader, Scissors, Upload, X } from "lucide-react";
+import { QUALITIES, DEFAULT_QUALITY, type Quality } from "@/lib/quality";
+import { Select } from "@/components/ui/Select";
 import { clipCountRange, DEFAULT_SECTION_SECONDS, fmtTimestamp, MAX_SECTION_SECONDS } from "@/lib/clipCount";
 import { parseClock } from "@/lib/seriesClient";
 import { SERIES_BATCH_SEC, SERIES_PART_SEC } from "@/lib/types";
@@ -265,6 +267,7 @@ export function BatchComposer() {
   const [dragOver, setDragOver] = useState(false);
   const [starting, setStarting] = useState(false);
   const [mode, setMode] = useState<ClipMode>("peaks");
+  const [quality, setQuality] = useState<Quality>(DEFAULT_QUALITY);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const patch = useCallback((key: string, p: Partial<Item>) => setItems((cur) => cur.map((i) => (i.key === key ? { ...i, ...p } : i))), []);
@@ -362,6 +365,7 @@ export function BatchComposer() {
         const base = {
           clipCount: Math.min(i.clipCount, max),
           mode,
+          quality,
           duration: i.duration || undefined,
           range: i.useRange && !i.series ? { start: i.rangeStart, end: i.rangeEnd } : undefined,
         };
@@ -503,6 +507,28 @@ export function BatchComposer() {
                 <Icon className="h-3.5 w-3.5" /> {label}
               </button>
             ))}
+          </div>
+        </div>
+      </Card>
+
+      <Card className="mt-3 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="font-display text-base font-semibold text-paper">Clip quality</h2>
+            <p className="mt-1 text-xs text-paper-dim">
+              {quality >= 1440
+                ? "Higher than 1080p downloads a bigger source and takes noticeably longer. Sections of very long videos are fetched at up to 1080p, then scaled up."
+                : "Size of the finished clips. You can also pick a quality again when you export from the editor."}
+            </p>
+          </div>
+          <div className="sm:w-60">
+            <Select
+              ariaLabel="Clip quality"
+              value={String(quality)}
+              onChange={(v) => setQuality(Number(v) as Quality)}
+              options={QUALITIES.map((q) => ({ value: String(q.key), label: q.label, hint: `${q.key}×${Math.round((q.key * 16) / 9 / 2) * 2}` }))}
+              menuWidth={240}
+            />
           </div>
         </div>
       </Card>

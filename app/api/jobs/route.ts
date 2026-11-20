@@ -18,6 +18,7 @@ const envSec = (name: string, fallback: number) => {
   return Number.isFinite(n) && n >= 30 ? n : fallback;
 };
 import type { TimeRange } from "@/lib/download";
+import { normalizeQuality } from "@/lib/quality";
 import type { ClipMode, Job } from "@/lib/types";
 
 function parseRange(rawStart: unknown, rawEnd: unknown): TimeRange | undefined {
@@ -50,6 +51,7 @@ export async function POST(req: NextRequest) {
   let clipCount: number | undefined;
   let range: TimeRange | undefined;
   let mode: ClipMode = "auto";
+  let quality = normalizeQuality(undefined);
   let title: string | undefined;
   let thumbnail: string | undefined;
   let duration: number | undefined;
@@ -71,6 +73,7 @@ export async function POST(req: NextRequest) {
     if (typeof rawCount === "string") clipCount = parseInt(rawCount, 10);
     range = parseRange(form.get("rangeStart"), form.get("rangeEnd"));
     mode = parseMode(form.get("mode"));
+    quality = normalizeQuality(form.get("quality"));
   } else {
     const body = await req.json().catch(() => ({}));
     const url = (body.url || "").trim();
@@ -82,6 +85,7 @@ export async function POST(req: NextRequest) {
     if (typeof body.clipCount === "number") clipCount = body.clipCount;
     range = parseRange(body.rangeStart, body.rangeEnd);
     mode = parseMode(body.mode);
+    quality = normalizeQuality(body.quality);
     title = str(body.title, 200);
     thumbnail = str(body.thumbnail, 1000);
     duration = num(body.duration);
@@ -120,7 +124,7 @@ export async function POST(req: NextRequest) {
     title,
     thumbnail,
     sourceDuration: duration,
-    request: { clipCount, range, mode },
+    request: { clipCount, range, mode, quality },
     series,
     stage: "queued",
     progress: 2,

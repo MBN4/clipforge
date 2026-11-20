@@ -18,8 +18,10 @@ const PARALLEL = 4; // more than this makes YouTube drop connections on typical 
 const HEAD = 2 * 1024 * 1024; // enough for ftyp + moov + sidx of even a 10-hour video
 // Windows over an hour are fetched at 720p: half the bytes of 1080p60, so roughly half the wait.
 const BIG_WINDOW_SEC = 3600;
-const formatFor = (windowSec: number) => {
-  const h = windowSec > BIG_WINDOW_SEC ? 720 : 1080;
+// The slicer only understands MP4 (H.264) streams, which YouTube offers up to 1080p, so that is its ceiling
+// whatever output quality was asked for; clips are still rendered at the chosen size.
+const formatFor = (windowSec: number, maxHeight: number) => {
+  const h = Math.min(maxHeight, windowSec > BIG_WINDOW_SEC ? 720 : 1080);
   return `bv*[height<=${h}][ext=mp4][protocol=https]+ba[ext=m4a][protocol=https]`;
 };
 
@@ -42,8 +44,8 @@ interface Plan {
   last: SidxEntry;
 }
 
-async function streamsFor(url: string, windowSec: number): Promise<{ video: Stream; audio: Stream }> {
-  const { stdout } = await run("yt-dlp", ["--no-playlist", "--no-warnings", "--dump-single-json", "-f", formatFor(windowSec), url]);
+async function streamsFor(url: string, windowSec: number, maxHeight: number): Promise<{ video: Stream; audio: Stream }> {
+  const { stdout } = await run("yt-dlp", ["--no-playlist", "--no-warnings", "--dump-single-json", "-f", formatFor(windowSec, maxHeight), url]);
   const info = JSON.parse(stdout);
   const fm = info.requested_formats as { url: string; http_headers?: Record<string, string>; ext?: string; protocol?: string; vcodec?: string; acodec?: string }[] | undefined;
   if (!fm || fm.length !== 2) throw new NotSliceable("not a separate video + audio download");
@@ -172,9 +174,10 @@ export async function downloadSlice(
   url: string,
   destDir: string,
   range: { start: number; end: number },
-  onProgress?: (pct: number, speed?: string) => void
+  onProgress?: (pct: number, speed?: string) => void,
+  maxHeight = 1080
 ): Promise<string> {
-  const { video, audio } = await streamsFor(url, range.end - range.start);
+  const { video, audio } = await streamsFor(url, range.end - range.start, maxHeight);
   const [vp, ap] = await Promise.all([plan(video, range.start, range.end), plan(audio, range.start, range.end)]);
 
   const need = (p: Plan) => p.last.offset + p.last.size - p.first.offset;

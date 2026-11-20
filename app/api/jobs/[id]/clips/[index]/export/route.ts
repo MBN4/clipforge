@@ -35,6 +35,8 @@ export async function POST(
   const n = (v: unknown, fallback: number) => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
   spec = {
     ...spec,
+    // no explicit choice (e.g. bulk captions): use the quality the video was made at
+    quality: spec.quality ?? job.request?.quality,
     textOverlays: (spec.textOverlays ?? []).map((o) => ({
       ...o,
       text: String(o.text ?? "").slice(0, 200),

@@ -12,8 +12,8 @@ import type { SystemSnapshot } from "@/lib/scheduler";
 import type { ClipMode } from "@/lib/types";
 
 export type NewJobInput =
-  | { kind: "url"; url: string; title?: string; thumbnail?: string; duration?: number; clipCount: number; mode?: ClipMode; range?: { start: number; end: number }; /** clip a long video part by part, starting here (seconds) */ series?: { from: number } }
-  | { kind: "file"; file: File; title: string; duration?: number; clipCount: number; mode?: ClipMode; range?: { start: number; end: number } };
+  | { kind: "url"; url: string; title?: string; thumbnail?: string; duration?: number; clipCount: number; mode?: ClipMode; quality?: number; range?: { start: number; end: number }; /** clip a long video part by part, starting here (seconds) */ series?: { from: number } }
+  | { kind: "file"; file: File; title: string; duration?: number; clipCount: number; mode?: ClipMode; quality?: number; range?: { start: number; end: number } };
 
 interface Dashboard {
   jobs: ClientJob[];
@@ -188,6 +188,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
             duration: input.duration,
             clipCount: input.clipCount,
             mode: input.mode,
+            quality: input.quality,
             rangeStart: input.range?.start,
             rangeEnd: input.range?.end,
             series: input.series,
@@ -202,6 +203,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         form.append("title", input.title);
         form.append("clipCount", String(input.clipCount));
         if (input.mode) form.append("mode", input.mode);
+        if (input.quality) form.append("quality", String(input.quality));
         if (input.duration) form.append("duration", String(input.duration));
         if (input.range) {
           form.append("rangeStart", String(input.range.start));
